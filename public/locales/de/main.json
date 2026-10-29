@@ -70,5 +70,13 @@
   "wrapping": "einwickeln",
   "xtm_token": "XTM",
   "from": "von",
-  "to": "an"
+  "to": "an",
+  "chain_retiring": "{{token}} on {{chain}} is being retired. Redeem it before support ends.",
+  "invalid_evm_address": "The destination is not a valid EVM address.",
+  "invalid_ootle_address": "The destination is not a valid Ootle address for this network.",
+  "official_token_address": "Official {{token}} Token Address",
+  "ootle_no_peg_out": "wTARI is redeemable for Ootle TARI only.",
+  "ootle_too_many_open_wraps": "You already have too many pending wraps. Finish or wait for your pending wraps before starting a new one.",
+  "ootle_unavailable": "Ootle bridging is unavailable: Tari Universe does not support Ootle on this network, or your wallet PIN is not set.",
+  "switch_chain_error": "Switch your wallet to {{chain}} to continue."
 }

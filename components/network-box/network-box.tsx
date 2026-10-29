@@ -5,20 +5,11 @@ import { IoIosArrowUp, IoIosArrowDown } from 'react-icons/io'
 import { NetworkBoxProps } from './network-box.types'
 
 export const NetworkBox = ({ type, selected, isOpen, networks, onToggle, onSelect }: NetworkBoxProps) => {
-  const getTokenSymbol = () => {
-    if (type === 'from') {
-      return selected.name === 'Tari' ? 'XTM' : 'wXTM'
-    } else {
-      if (selected.name === 'Tari') return 'XTM'
-      return 'wXTM'
-    }
-  }
-
   const getFilteredNetworks = () => {
     return networks.filter((network) => network.name !== selected.name)
   }
 
-  const tokenSymbol = getTokenSymbol()
+  const tokenSymbol = selected.token
   const filteredNetworks = getFilteredNetworks()
 
   return (

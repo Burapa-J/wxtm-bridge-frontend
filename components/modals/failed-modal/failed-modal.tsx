@@ -7,10 +7,12 @@ import useTariSigner from '@/store/signer'
 import { useTranslation } from 'react-i18next'
 import { useBridgeStore } from '@/store/bridge'
 import { removeOngoingTransaction, useTariAccountStore } from '@/store/account'
+import { useBridgeRoute } from '@/hooks/use-bridge-route'
 
 export const FailedModal = ({ closeModalAction, paymentId: paymentIdProp }: FailedModalProps) => {
   const signer = useTariSigner((s) => s.signer)
-  const fromNetwork = useBridgeStore((s) => s.fromNetwork)
+  const bridgeError = useBridgeStore((s) => s.bridgeError)
+  const { isWrapping } = useBridgeRoute().route
   const ongoingBridgeTx = useTariAccountStore((s) => s.ongoingBridgeTx)
   const { t } = useTranslation('main', { useSuspense: false })
 
@@ -30,13 +32,13 @@ export const FailedModal = ({ closeModalAction, paymentId: paymentIdProp }: Fail
           </div>
           <div className="font-semibold text-lg mt-2">{t('something_went_wrong')}</div>
           <div className="font-normal text-xs mt-2 text-center px-3">
-            {fromNetwork.name === 'Tari' ? t('wrap_failed_message') : t('unwrap_failed_message')}
+            {bridgeError || (isWrapping ? t('wrap_failed_message') : t('unwrap_failed_message'))}
           </div>
         </div>
 
         {/* Section 1 */}
         <div className="flex flex-col my-4">
-          {fromNetwork.name === 'Tari' ? (
+          {isWrapping && !bridgeError ? (
             <div className="font-medium">
               <div className="text-xs text-gray-500">{t('transaction_id')}</div>
               <div className="text-sm">{paymentIdProp || ongoingBridgeTx?.paymentId}</div>

@@ -4,7 +4,7 @@ import { ReactNode, useState, useEffect, useRef, useEffectEvent } from 'react'
 import { WagmiProvider, State, Config, cookieToInitialState } from 'wagmi'
 import { getConfig } from '@/utils/config'
 import { QueryClientProvider } from '@tanstack/react-query'
-import { setTariAccount } from '@/store/account'
+import { loadOotleBridge, setTariAccount } from '@/store/account'
 import { TariL1SignerParameters } from '@/types/tapplet'
 import TariL1Signer from '@/clients/tari-l1-signer'
 import { useIframeMessage } from '@/utils/useIframeMessage'
@@ -54,6 +54,7 @@ export const Providers = ({ children }: { children: ReactNode }) => {
             await setTariAccount()
             await setAppConfig()
             getInitConfig()
+            await loadOotleBridge()
           }
         } catch (error) {
           console.error('[ TAPPLET-BRIDGE ] Failed to set Tari Account:', error)

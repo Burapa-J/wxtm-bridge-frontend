@@ -1,42 +1,47 @@
 import { ethers } from 'ethers'
 import { microXtmToXtm, parseWxtmTokenAmount } from '@/utils/parse-wxtm-token-amount'
-import { TokensUnwrappedService, UserTransactionDTO } from '@tari-project/wxtm-bridge-backend-api'
-import { DeployedChains, getDeployments } from '@tari-project/wxtm-bridge-contracts/deployments'
+import {
+  OotleTokensUnwrappedService,
+  TokensUnwrappedService,
+  UserTransactionDTO,
+} from '@tari-project/wxtm-bridge-backend-api'
 import { WXTM__factory, WXTMBridge__factory } from '@tari-project/wxtm-bridge-contracts/typechain/factories/contracts'
-import { useReadContract, useWalletClient, useWriteContract } from 'wagmi'
+import { useConfig, useConnection, useReadContract, useSwitchChain, useWriteContract } from 'wagmi'
+import { getWalletClient } from 'wagmi/actions'
+import i18next from 'i18next'
 import { setLastOngoingBridgeTx } from '@/store/account'
-import { setExceededDailyLimit } from '@/store/bridge'
+import { setBridgeError, setExceededDailyLimit } from '@/store/bridge'
+import useAppStore from '@/store/app'
+import { AssetConfig, amountAfterFee as getAmountAfterFee } from '@/utils/bridge-route'
+import { isOotleAddress } from '@/utils/ootle-address'
 
-export const useBridgeToTari = (ethAddress: `0x${string}`, chain: DeployedChains) => {
-  const deployments = getDeployments(chain)
-  const wXTMAddress = deployments.wXTM
-  const wXTMBridgeAddress = deployments.wXTMBridge
-  const wXTMAbi = WXTM__factory.abi
-  const wXTMBridgeAbi = WXTMBridge__factory.abi
+// wTARI and wTARIBridge expose the same eip712Domain and bridgeToTariWithAuthorization as wXTM and wXTMBridge.
+const tokenAbi = WXTM__factory.abi
+const bridgeAbi = WXTMBridge__factory.abi
+
+export const useBridgeToTari = (ethAddress: `0x${string}`, asset: AssetConfig) => {
+  const { chainId, tokenAddress, bridgeAddress } = asset
+  const wagmiConfig = useConfig()
+  const { chainId: connectedChainId } = useConnection()
+  const { switchChainAsync } = useSwitchChain()
   const { data: domainData } = useReadContract({
-    address: wXTMAddress,
-    abi: wXTMAbi,
+    address: tokenAddress,
+    abi: tokenAbi,
     functionName: 'eip712Domain',
     args: [],
+    chainId,
   })
   const { mutateAsync: writeContract, isPending, isSuccess, isError, error } = useWriteContract()
-  const { data: signer } = useWalletClient({
-    account: ethAddress,
-    chainId: chain,
-  })
 
   const generateAuthorizationSignature = async (
-    from: string,
+    from: `0x${string}`,
     to: string,
     value: bigint,
     validAfter: bigint,
     validBefore: bigint,
     nonce: string,
   ) => {
-    if (!signer) {
-      console.error(`[ TAPPLET-BRIDGE ] Failed getting signer!`)
-      throw new Error('No signer available')
-    }
+    const signer = await getWalletClient(wagmiConfig, { account: from, chainId })
 
     if (!domainData) {
       console.error(`[ TAPPLET-BRIDGE ] Domain data not available`)
@@ -46,8 +51,8 @@ export const useBridgeToTari = (ethAddress: `0x${string}`, chain: DeployedChains
     const domain = {
       name: domainData[1],
       version: domainData[2],
-      chainId: chain,
-      verifyingContract: wXTMAddress,
+      chainId,
+      verifyingContract: tokenAddress,
     }
     const types = {
       ReceiveWithAuthorization: [
@@ -79,15 +84,38 @@ export const useBridgeToTari = (ethAddress: `0x${string}`, chain: DeployedChains
     return { v, r, s }
   }
 
+  const getRemainingDailyLimit = () =>
+    asset.kind === 'ootle'
+      ? OotleTokensUnwrappedService.getOotleRemainingDailyLimit(chainId)
+      : TokensUnwrappedService.getRemainingDailyLimit()
+
   const bridgeToTari = async (amount: string, ethAddress: `0x${string}`, tariAddress: string) => {
+    const t = i18next.getFixedT(null, 'main')
+
+    if (asset.kind === 'ootle' && !isOotleAddress(tariAddress, useAppStore.getState().network)) {
+      console.error(`[ TAPPLET-BRIDGE ] Invalid Ootle destination address`)
+      setBridgeError(t('invalid_ootle_address'))
+      return false
+    }
+
     try {
-      const limitMicro = await TokensUnwrappedService.getRemainingDailyLimit()
+      const limitMicro = await getRemainingDailyLimit()
       const limitXtm = microXtmToXtm(limitMicro)
       const amountNum = parseFloat(amount)
 
       if (limitXtm && amountNum > limitXtm) {
         setExceededDailyLimit(true)
         new Error(`[ TAPPLET-BRIDGE ] Daily limit exceeded. Limit: ${limitXtm}, Amount: ${amountNum}`)
+      }
+
+      if (connectedChainId !== chainId) {
+        try {
+          await switchChainAsync({ chainId })
+        } catch (e) {
+          console.error(`[ TAPPLET-BRIDGE ] Wallet did not switch to chain ${chainId}: ${e}`)
+          setBridgeError(t('switch_chain_error', { chain: asset.chainName }))
+          return false
+        }
       }
 
       const value = BigInt(ethers.utils.parseEther(amount).toString())
@@ -100,7 +128,7 @@ export const useBridgeToTari = (ethAddress: `0x${string}`, chain: DeployedChains
 
       const { v, r, s } = await generateAuthorizationSignature(
         ethAddress,
-        wXTMBridgeAddress,
+        bridgeAddress,
         value,
         validAfter,
         validBefore,
@@ -111,8 +139,8 @@ export const useBridgeToTari = (ethAddress: `0x${string}`, chain: DeployedChains
 
       try {
         const txHash = await writeContract({
-          address: wXTMBridgeAddress,
-          abi: wXTMBridgeAbi,
+          address: bridgeAddress,
+          abi: bridgeAbi,
           functionName: 'bridgeToTariWithAuthorization',
           args: [
             tariAddress,
@@ -124,11 +152,12 @@ export const useBridgeToTari = (ethAddress: `0x${string}`, chain: DeployedChains
             r as `0x${string}`,
             s as `0x${string}`,
           ],
+          chainId,
         })
 
         console.debug(`[ TAPPLET-BRIDGE ] Bridge transaction executed with txHash: ${txHash}, amount: ${value}`)
 
-        const amountAfterFee = (value * ethers.utils.parseUnits('0.995', 18).toBigInt()) / BigInt(1e18)
+        const amountAfterFee = getAmountAfterFee(value, asset.unwrapFeeBps)
 
         // set ongoing to immediately display wrap modal
         setLastOngoingBridgeTx({

@@ -11,6 +11,7 @@ import { useTariAccountStore } from '@/store/account'
 
 import { useBridgeStatus } from '@/hooks/use-bridge-status'
 import { useBridgeStore } from '@/store/bridge'
+import { useBridgeRoute } from '@/hooks/use-bridge-route'
 
 // TODO - add translation keys
 
@@ -19,6 +20,17 @@ export const MainComponent = ({ remainingDailyLimit }: MainComponentProps) => {
   const [showHistory, setShowHistory] = useState(false)
   const exceededDailyLimit = useBridgeStore((s) => s.exceededDailyLimit)
   const bridgeTxs = useTariAccountStore((s) => s.combinedBridgeTxs)
+  const ootleUnavailable = useBridgeStore((s) => s.ootleUnavailable)
+  const ootleAssets = useBridgeStore((s) => s.ootleAssets)
+  const { route } = useBridgeRoute()
+
+  const notices: string[] = []
+  if (ootleUnavailable) notices.push(t('ootle_unavailable'))
+  for (const asset of ootleAssets) {
+    if (asset.status === 'unwrap_only')
+      notices.push(t('chain_retiring', { token: asset.evmToken, chain: asset.chainName }))
+  }
+  if (route.asset.kind === 'ootle') notices.push(t('ootle_no_peg_out'))
 
   const { isOffline } = useBridgeStatus()
 
@@ -50,6 +62,13 @@ export const MainComponent = ({ remainingDailyLimit }: MainComponentProps) => {
           </div>
         </div>
       )}
+      {notices.map((notice) => (
+        <div key={notice} className="flex items-center justify-center w-[clamp(480px,50vw,800px)] mt-2">
+          <div className="p-3 rounded-2xl bg-white/25 backdrop-blur-sm shadow-lg">
+            <div className="font-light leading-none text-[14px] text-center text-pretty text-balance">{notice}</div>
+          </div>
+        </div>
+      ))}
       <div
         className="mb-4 mt-6 flex gap-2"
         style={{

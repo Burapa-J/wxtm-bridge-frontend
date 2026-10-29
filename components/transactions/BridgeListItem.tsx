@@ -26,6 +26,9 @@ import { openExternalLink } from '@/utils/universe'
 import { HiArrowRightOnRectangle } from 'react-icons/hi2'
 import { UserTransactionDTO, UserUnwrappedTransactionDTO } from '@tari-project/wxtm-bridge-backend-api'
 import { buildEtherscanLink } from '@/utils/tariNetwork'
+import { useBridgeStore } from '@/store/bridge'
+import { getExplorerUrl } from '@/utils/bridge-route'
+import { KNOWN_EVM_CHAINS } from '@/utils/evm-chains'
 
 const BaseItem = memo(function BaseItem({
   title,
@@ -35,6 +38,7 @@ const BaseItem = memo(function BaseItem({
   onClick,
   status,
   transactionType,
+  currency,
 }: BridgeBaseItemProps) {
   // note re. isPositiveValue:
   // amounts in the tx response are always positive numbers but
@@ -71,7 +75,7 @@ const BaseItem = memo(function BaseItem({
             {transactionType === 'wrap' && <ValueChangeWrapper $isPositiveValue={false}>{`-`}</ValueChangeWrapper>}
             {transactionType === 'unwrap' && <ValueChangeWrapper $isPositiveValue={true}>{`+`}</ValueChangeWrapper>}
             {value}
-            <CurrencyText>{`XTM`}</CurrencyText>
+            <CurrencyText>{currency}</CurrencyText>
           </ValueWrapper>
         </Content>
         <div className="flex justify-end">
@@ -106,11 +110,14 @@ const HistoryBaseItem = memo(function HistoryBaseItem({
   address,
   transactionHash,
   transactionType,
+  badge,
+  currency,
+  explorerUrl,
 }: BridgeBaseItemProps) {
   const { t } = useTranslation('main', { useSuspense: false })
   const displayTitle = title.length > 26 ? truncateMiddle(title, 8) : title
   const displayAddress = address ? truncateMiddle(address, 6) : ''
-  const etherscanLink = buildEtherscanLink(transactionHash)
+  const etherscanLink = buildEtherscanLink(transactionHash, explorerUrl)
 
   const renderExplorerSection = () => {
     if (
@@ -168,6 +175,7 @@ const HistoryBaseItem = memo(function HistoryBaseItem({
           >
             {displayTitle}
           </TitleWrapper>
+          {badge ? <span className="ml-2 text-[10px] text-gray-500 whitespace-nowrap">{badge}</span> : null}
         </div>
 
         <div className="flex-1 flex items-center justify-center">
@@ -179,7 +187,7 @@ const HistoryBaseItem = memo(function HistoryBaseItem({
             {transactionType === 'wrap' && <ValueChangeWrapper $isPositiveValue={false}>{`-`}</ValueChangeWrapper>}
             {transactionType === 'unwrap' && <ValueChangeWrapper $isPositiveValue={true}>{`+`}</ValueChangeWrapper>}
             {value}
-            <CurrencyText>{`XTM`}</CurrencyText>
+            <CurrencyText>{currency}</CurrencyText>
           </ValueWrapper>
         </div>
 
@@ -213,6 +221,7 @@ const BridgeHistoryListItem = memo(function ListItem({
 }: BridgeHistoryListItemProps & { isHistoryList?: boolean }) {
   const { t } = useTranslation()
   const hideWalletBalance = useAppStore((s) => s.hideWalletBalance)
+  const ootleAssets = useBridgeStore((s) => s.ootleAssets)
 
   const ref = useRef<HTMLDivElement>(null)
 
@@ -224,7 +233,21 @@ const BridgeHistoryListItem = memo(function ListItem({
     : formatNumber(normalizedAmount, FormatPreset.XTM_COMPACT).toLowerCase()
   const time = formatTimeStamp(getTimestampFromTransaction(item))
 
-  const transactionTitle = item.type === 'wrap' ? 'Bridge XTM to wXTM' : 'Bridge wXTM to XTM'
+  const ootleChainId = item.ootleChainId
+  let tariToken = 'XTM'
+  let evmToken = 'wXTM'
+  let chainName = 'Ethereum'
+  let explorerUrl: string | undefined
+  if (ootleChainId !== undefined) {
+    const ootleAsset = ootleAssets.find((a) => a.chainId === ootleChainId)
+    tariToken = 'TARI'
+    evmToken = 'wTARI'
+    chainName = ootleAsset?.chainName ?? KNOWN_EVM_CHAINS[ootleChainId]?.name ?? String(ootleChainId)
+    explorerUrl = ootleAsset?.explorerUrl ?? getExplorerUrl(ootleChainId)
+  }
+
+  const transactionTitle =
+    item.type === 'wrap' ? `Bridge ${tariToken} to ${evmToken}` : `Bridge ${evmToken} to ${tariToken}`
 
   const handleItemClick = () => {
     const detailedTx = { ...item, createdAt: time }
@@ -241,6 +264,9 @@ const BridgeHistoryListItem = memo(function ListItem({
       transactionHash={item?.transactionHash}
       onClick={handleItemClick}
       transactionType={item.type}
+      badge={`${evmToken} · ${chainName}`}
+      currency={tariToken}
+      explorerUrl={explorerUrl}
     />
   ) : (
     <BaseItem
@@ -251,6 +277,7 @@ const BridgeHistoryListItem = memo(function ListItem({
       chip={itemIsNew ? t('new') : ''}
       onClick={handleItemClick}
       transactionType={item.type}
+      currency={tariToken}
     />
   )
 

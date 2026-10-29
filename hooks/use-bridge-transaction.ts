@@ -1,6 +1,10 @@
 import { useMutation } from '@tanstack/react-query'
 
 import {
+  OotleTokensUnwrappedService,
+  OotleUserUnwrapTransactionDTO,
+  OotleUserWrapTransactionDTO,
+  OotleWrapTokenService,
   TokensUnwrappedService,
   UserTransactionDTO,
   UserUnwrappedTransactionDTO,
@@ -19,10 +23,73 @@ import {
   useTariAccountStore,
 } from '@/store/account'
 
+const OOTLE_PAGE_LIMIT = 100
+
+async function fetchAllPages<T>(
+  fetchPage: (limit: number, offset: number) => Promise<{ transactions: T[]; total: number }>,
+): Promise<T[]> {
+  const all: T[] = []
+  while (true) {
+    const page = await fetchPage(OOTLE_PAGE_LIMIT, all.length)
+    all.push(...page.transactions)
+    if (page.transactions.length === 0 || all.length >= page.total) return all
+  }
+}
+
+// Ootle wrap listings carry a display reference instead of the paymentId; it stands in as the key.
+function fromOotleWrap(tx: OotleUserWrapTransactionDTO): BackendBridgeTransaction {
+  return {
+    paymentId: tx.reference,
+    tokenAmount: tx.tokenAmount,
+    amountAfterFee: tx.amountAfterFee,
+    feeAmount: tx.feeAmount,
+    createdAt: tx.createdAt,
+    transactionHash: tx.transactionHash,
+    destinationAddress: tx.destinationAddress,
+    // Same status strings as the wXTM listing.
+    status: tx.status as string as UserTransactionDTO.status,
+    ootleChainId: tx.toChainId,
+  }
+}
+
+function fromOotleUnwrap(tx: OotleUserUnwrapTransactionDTO): BackendUnwrapTransaction {
+  return {
+    paymentId: tx.paymentId,
+    amount: tx.amount,
+    amountAfterFee: tx.amountAfterFee,
+    feeAmount: tx.feeAmount,
+    createdAt: tx.createdAt,
+    transactionHash: tx.transactionHash,
+    blockTimestamp: tx.blockTimestamp,
+    destinationAddress: tx.destinationAddress,
+    status: tx.status as string as UserUnwrappedTransactionDTO.status,
+    ootleChainId: tx.chainId,
+  }
+}
+
+async function getOotleTransactions(
+  ootleAddress: string | undefined,
+): Promise<{ wraps: BackendBridgeTransaction[]; unwraps: BackendUnwrapTransaction[] }> {
+  if (!ootleAddress) return { wraps: [], unwraps: [] }
+  try {
+    const wraps = await fetchAllPages((limit, offset) =>
+      OotleWrapTokenService.getOotleUserWrapTransactions(ootleAddress, limit, offset),
+    )
+    const unwraps = await fetchAllPages((limit, offset) =>
+      OotleTokensUnwrappedService.getOotleUserUnwrapTransactions(ootleAddress, limit, offset),
+    )
+    return { wraps: wraps.map(fromOotleWrap), unwraps: unwraps.map(fromOotleUnwrap) }
+  } catch (error) {
+    console.error('[ TAPPLET-BRIDGE ] failed to get Ootle transactions:', error)
+    return { wraps: [], unwraps: [] }
+  }
+}
+
 export const useBridgeTransaction = () => {
   const ongoingBridgeTx = useTariAccountStore((s) => s.ongoingBridgeTx)
   const lastOngoingPaymentIdFromTU = useTariAccountStore((s) => s.lastOngoingPaymentIdFromTU)
   const tariAccount = useTariAccountStore((s) => s.tariAccount)
+  const ootleAccount = useTariAccountStore((s) => s.ootleAccount)
   const getUserWrapTxs = useMutation({
     mutationFn: WrapTokenService.getUserTransactions,
   })
@@ -55,9 +122,10 @@ export const useBridgeTransaction = () => {
     } else {
       const wrapResult = await getUserWrapTxs.mutateAsync(walletAddress)
       const unwrapResult = await getUserUnwrapTxs.mutateAsync(walletAddress)
+      const ootle = await getOotleTransactions(ootleAccount?.address)
 
-      wrapTransactions = wrapResult.transactions
-      unwrapTransactions = unwrapResult.transactions
+      wrapTransactions = [...wrapResult.transactions, ...ootle.wraps]
+      unwrapTransactions = [...unwrapResult.transactions, ...ootle.unwraps]
 
       setBackendBridgeTxs(wrapTransactions)
       setBackendUnwrapTxs(unwrapTransactions)

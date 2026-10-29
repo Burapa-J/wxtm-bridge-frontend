@@ -11,8 +11,8 @@ import { useTranslation } from 'react-i18next'
 import { IoCloseOutline } from 'react-icons/io5'
 import { ModalButton } from '../modal-button'
 import { WrapModalProps } from './wrap-modal.types'
-import { useBridgeStore } from '@/store/bridge'
 import { useTariAccountStore } from '@/store/account'
+import { useBridgeRoute } from '@/hooks/use-bridge-route'
 
 /** @TODO Refactor and get rid of conditional display here create unwrap-modal and use it for unwrap txs */
 export const WrapModal = ({
@@ -27,9 +27,9 @@ export const WrapModal = ({
 }: WrapModalProps) => {
   const { i18n, t } = useTranslation('main', { useSuspense: false })
   const ongoingBridgeTx = useTariAccountStore((s) => s.ongoingBridgeTx)
-  const fromNetwork = useBridgeStore((s) => s.fromNetwork)
+  const { route } = useBridgeRoute()
 
-  const bridgeInfo = useBridgeInfo(fromNetwork, ethereumAddress!, tariWalletAddress!)
+  const bridgeInfo = useBridgeInfo(route, ethereumAddress!, tariWalletAddress!)
   const amountAfterFeePending = amountAfterFeeProp
     ? parseFloat(utils.formatUnits(amountAfterFeeProp, type === 'wrap' ? 6 : 18)).toPrecision()
     : ongoingBridgeTx?.amountAfterFee

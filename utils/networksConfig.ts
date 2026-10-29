@@ -1,34 +1,32 @@
+import { baseSepolia, mainnet, sepolia } from 'viem/chains'
+
 export interface SupportedChain {
   id: number
   name: string
   icon: string
 }
 
+// Chains with a wXTM deployment.
 export const supportedChains: SupportedChain[] = [
   {
-    id: 1,
+    id: mainnet.id,
     name: 'ETH MAINNET',
     icon: '/eth.png',
   },
   {
-    id: 11155111,
+    id: sepolia.id,
     name: 'SEPOLIA',
     icon: '/eth.png',
   },
   {
-    id: 84532,
+    id: baseSepolia.id,
     name: 'BASE SEPOLIA',
     icon: '/eth.png',
   },
 ]
 
 export const chainsMap: Record<number, string> = {
-  1: 'ETH MAINNET',
-  11155111: 'SEPOLIA',
-  84532: 'BASE SEPOLIA',
+  [mainnet.id]: 'ETH MAINNET',
+  [sepolia.id]: 'SEPOLIA',
+  [baseSepolia.id]: 'BASE SEPOLIA',
 }
-
-export const networks = [
-  { name: 'Ethereum', icon: '/icons/eth.png' },
-  { name: 'Tari', icon: '/icons/tari.png' },
-]

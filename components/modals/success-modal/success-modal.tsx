@@ -2,7 +2,6 @@ import Image from 'next/image'
 import React, { useCallback, useState } from 'react'
 
 import { ModalButton } from '@/components/modals/modal-button'
-import { config } from '@/config'
 import { useBridgeInfo } from '@/hooks/use-bridge-info'
 import { useWalletUtils } from '@/hooks/use-wallet'
 import { useTariAccountStore, removeOngoingTransaction } from '@/store/account'
@@ -21,7 +20,7 @@ import {
   OfficialContractAddressWrapper,
 } from './success-modal.styles'
 import { SuccessModalProps } from './success-modal.types'
-import { useBridgeStore } from '@/store/bridge'
+import { useBridgeRoute } from '@/hooks/use-bridge-route'
 
 export const SuccessModal = ({
   closeModalAction,
@@ -34,21 +33,22 @@ export const SuccessModal = ({
   const { t } = useTranslation('main', { useSuspense: false })
   const signer = useTariSigner((s) => s.signer)
   const ongoingBridgeTx = useTariAccountStore((s) => s.ongoingBridgeTx)
-  const fromNetwork = useBridgeStore((s) => s.fromNetwork)
+  const { route } = useBridgeRoute()
+  const { asset } = route
 
-  const { fromToken, toToken } = useBridgeInfo(fromNetwork, ethereumAddress!, tariWalletAddress!)
-  const { addXtmToWalletAction } = useWalletUtils()
+  const { fromToken, toToken } = useBridgeInfo(route, ethereumAddress!, tariWalletAddress!)
+  const { addTokenToWalletAction } = useWalletUtils()
   const [copied, setCopied] = useState(false)
 
   const handleCopyAddress = useCallback(async () => {
-    await navigator.clipboard.writeText(config.WXTM_CONTRACT_ADDRESS)
+    await navigator.clipboard.writeText(asset.tokenAddress)
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
-  }, [])
+  }, [asset.tokenAddress])
 
   const handleAddWxtmToWalletAction = useCallback(() => {
     console.info('[ TAPPLET-BRIDGE ] Adding WXTM token to the wallet initiated')
-    addXtmToWalletAction()
+    addTokenToWalletAction(asset)
       .then(() => {
         console.info('[ TAPPLET-BRIDGE ] Adding WXTM token to the wallet successful')
       })
@@ -56,7 +56,7 @@ export const SuccessModal = ({
         sendErrorMessage(`Request failed. Feature not supported by your wallet app.`)
         console.error('[ TAPPLET-BRIDGE ] Fail to add WXTM token to the wallet: ', error)
       })
-  }, [addXtmToWalletAction])
+  }, [addTokenToWalletAction, asset])
   const handleOnClick = useCallback(async () => {
     closeModalAction()
     removeOngoingTransaction()
@@ -92,8 +92,12 @@ export const SuccessModal = ({
         <div style={{ height: 20 }} />
         <OfficialContractAddressConainer>
           <OfficialContractAddressWrapper>
-            <span className="label">{t('official_wxtm_token_address')}</span>
-            <span className="address">{config.WXTM_CONTRACT_ADDRESS}</span>
+            <span className="label">
+              {asset.kind === 'ootle'
+                ? t('official_token_address', { token: asset.evmToken })
+                : t('official_wxtm_token_address')}
+            </span>
+            <span className="address">{asset.tokenAddress}</span>
           </OfficialContractAddressWrapper>
           <CopyIconWrapper onClick={handleCopyAddress}>
             <CopyIcon size={16} />
@@ -115,7 +119,7 @@ export const SuccessModal = ({
             {t('how_to_view_wxtm_step1_prefix')}
             <span className="strong">{t('token_address')}</span>
             {t('how_to_view_wxtm_step1_middle')}
-            <span className="strong">{t('ethereum_mainnet')}</span>
+            <span className="strong">{asset.kind === 'ootle' ? asset.chainName : t('ethereum_mainnet')}</span>
             {t('how_to_view_wxtm_step1_network')}
             <span className="btn" onClick={handleAddWxtmToWalletAction}>
               {t('click_here')}

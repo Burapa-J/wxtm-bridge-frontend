@@ -14,6 +14,8 @@ interface State {
   theme: Theme
   hideWalletBalance: boolean
   isMainNet: boolean
+  // Universe network name from getNetwork(), e.g. 'mainnet' or 'esmeralda'
+  network: string
   ethereumNodes: PublicEthereumNodeRespDTO[]
 }
 
@@ -30,6 +32,7 @@ const initialState: State = {
   theme: 'light',
   hideWalletBalance: false,
   isMainNet: true,
+  network: '',
   ethereumNodes: [],
 }
 
@@ -94,7 +97,7 @@ export const setAppConfig = async () => {
     // Fetch nodes before exposing walletConnectProjectId: setting it triggers the
     // wagmi config build in Providers, which reads ethereumNodes from this store.
     const ethereumNodes = await fetchEthereumNodes()
-    useAppStore.setState({ walletConnectProjectId, bridgeAPI, isMainNet, ethereumNodes })
+    useAppStore.setState({ walletConnectProjectId, bridgeAPI, isMainNet, network: network ?? '', ethereumNodes })
 
     const appLanguage = await signer.getAppLanguage()
     if (appLanguage) await setLanguage(appLanguage)

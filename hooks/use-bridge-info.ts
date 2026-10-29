@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { Network } from '@/components/network-box'
+import { BridgeRoute } from '@/utils/bridge-route'
 
 export type BridgeInfo = {
   fromToken: string
@@ -10,17 +10,18 @@ export type BridgeInfo = {
 }
 
 export const useBridgeInfo = (
-  fromNetwork: Network,
+  route: BridgeRoute,
   ethereumAddress?: string,
   tariWalletAddress?: string,
   handleBridgeToEthereum?: () => void,
   handleBridgeToTari?: () => void,
 ): BridgeInfo => {
   return useMemo(() => {
-    const isWrapping = fromNetwork.name === 'Tari'
+    const isWrapping = route.isWrapping
+    const { tariToken, evmToken } = route.asset
 
-    const fromToken = isWrapping ? 'XTM' : 'wXTM'
-    const toToken = isWrapping ? 'wXTM' : 'XTM'
+    const fromToken = isWrapping ? tariToken : evmToken
+    const toToken = isWrapping ? evmToken : tariToken
     const destAddress = isWrapping ? ethereumAddress : tariWalletAddress
     const bridgeHandler = isWrapping
       ? handleBridgeToEthereum
@@ -28,7 +29,7 @@ export const useBridgeInfo = (
 
     return { fromToken, toToken, isWrapping, destAddress, bridgeHandler }
   }, [
-    fromNetwork.name,
+    route,
     ethereumAddress,
     tariWalletAddress,
     handleBridgeToEthereum,

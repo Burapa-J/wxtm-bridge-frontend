@@ -2,6 +2,11 @@ import { AccountData, OngoingUserTransaction } from '@/types/tapplet'
 import { create } from 'zustand'
 import useTariSigner from './signer'
 import { BackendBridgeTransaction, BackendUnwrapTransaction, CombinedBridgeTransaction } from '@/types/transactions'
+import { BridgeTxDetails } from '@/clients/tari-l1-signer'
+import { getOotleAccount, getOotleBalance, OotleAccount, OotleSignerError } from '@/clients/tari-ootle-signer'
+import { OotleWrapTokenService } from '@tari-project/wxtm-bridge-backend-api'
+import { getOotleAssets } from '@/utils/bridge-route'
+import { setOotleConfig, setOotleUnavailable } from './bridge'
 
 interface TariL1WalletStoreState {
   tariAccount?: AccountData
@@ -12,6 +17,11 @@ interface TariL1WalletStoreState {
   backendUnwrapTxs: BackendUnwrapTransaction[]
   combinedBridgeTxs: CombinedBridgeTransaction[]
   detailedTx?: CombinedBridgeTransaction | null
+  ootleAccount?: OotleAccount
+  // micro TARI
+  ootleAvailableBalance: number
+  // An Ootle wrap whose deposit was sent but not yet confirmed with tokens-sent.
+  ootleWrapToResume?: BridgeTxDetails
 }
 
 const initialState: TariL1WalletStoreState = {
@@ -25,6 +35,7 @@ const initialState: TariL1WalletStoreState = {
   backendBridgeTxs: [],
   backendUnwrapTxs: [],
   combinedBridgeTxs: [],
+  ootleAvailableBalance: 0,
 }
 
 export const useTariAccountStore = create<TariL1WalletStoreState>()(() => ({
@@ -53,6 +64,10 @@ export const setTariAccount = async () => {
       },
       availableBalance: balance?.available_balance || 0,
       lastOngoingPaymentIdFromTU: ongoingBridgeTx?.paymentId ?? '',
+      ootleWrapToResume:
+        ongoingBridgeTx?.network === 'Ootle' && ongoingBridgeTx.clientToken && ongoingBridgeTx.ootleTransactionId
+          ? ongoingBridgeTx
+          : undefined,
     })
 
     return
@@ -113,3 +128,46 @@ export const setDetailedTx = (detailedTx: CombinedBridgeTransaction | null) =>
   useTariAccountStore.setState({
     detailedTx: detailedTx,
   })
+
+export const clearOotleWrapToResume = () => useTariAccountStore.setState({ ootleWrapToResume: undefined })
+
+export const refreshOotleBalance = async () => {
+  try {
+    const balance = await getOotleBalance()
+    useTariAccountStore.setState({ ootleAvailableBalance: Number(balance.available) })
+  } catch (error) {
+    console.error('[ TAPPLET-BRIDGE ] error getting the Ootle balance: ', error)
+  }
+}
+
+// Offers the Ootle routes only when the backend has a usable wTARI chain and Universe's Ootle wallet is open.
+export const loadOotleBridge = async () => {
+  if (process.env.NODE_ENV === 'development') return
+
+  let assets
+  let coldAccountAddress
+  try {
+    const params = await OotleWrapTokenService.getOotleWrapTokenParams()
+    assets = getOotleAssets(params)
+    coldAccountAddress = params.coldAccountAddress
+  } catch (error) {
+    console.info('[ TAPPLET-BRIDGE ] Ootle bridge not available: ', error)
+    return
+  }
+  if (!assets.length) return
+
+  try {
+    const ootleAccount = await getOotleAccount()
+    useTariAccountStore.setState({ ootleAccount })
+  } catch (error) {
+    if (error instanceof OotleSignerError && error.code === 'l2_unavailable') {
+      setOotleUnavailable(true)
+    } else {
+      console.error('[ TAPPLET-BRIDGE ] error getting the Ootle account: ', error)
+    }
+    return
+  }
+
+  await refreshOotleBalance()
+  setOotleConfig(assets, coldAccountAddress)
+}

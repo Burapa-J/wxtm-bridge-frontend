@@ -1,17 +1,18 @@
 import { useWalletClient } from 'wagmi'
+import { AssetConfig } from '@/utils/bridge-route'
 
 export const useWalletUtils = () => {
   const { data: walletClient } = useWalletClient()
-  const addXtmToWalletAction = async () => {
+  const addTokenToWalletAction = async (asset: AssetConfig) => {
     try {
       return walletClient?.request({
         method: 'wallet_watchAsset',
         params: {
           type: 'ERC20',
           options: {
-            address: '0xfD36fA88bb3feA8D1264fc89d70723b6a2B56958',
-            symbol: 'wXTM',
-            decimals: 18,
+            address: asset.tokenAddress,
+            symbol: asset.evmToken,
+            decimals: asset.evmDecimals,
             image: 'https://tari.com/favicon.png?v=1',
           },
         },
@@ -23,6 +24,6 @@ export const useWalletUtils = () => {
   }
 
   return {
-    addXtmToWalletAction,
+    addTokenToWalletAction,
   }
 }
