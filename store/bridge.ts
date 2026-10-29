@@ -2,7 +2,8 @@ import { create } from 'zustand'
 import { Network } from '@/components/network-box'
 import type { AssetConfig } from '@/utils/bridge-route'
 
-export type EvmNetworkOption = { kind: 'evm'; chainId: number }
+// asset matches AssetConfig['kind'], so wXTM and wTARI on the same chain stay distinct.
+export type EvmNetworkOption = { kind: 'evm'; chainId: number; asset: 'wxtm' | 'ootle' }
 export type NetworkOption = 'Tari' | 'Ootle' | EvmNetworkOption
 
 interface BridgeConfigStoreState {
@@ -24,9 +25,14 @@ const initialState: BridgeConfigStoreState = {
   wrapTokenFeePercentageBps: 50, // 0.5% fee
   unwrapTokenFeePercentageBps: 50, // 0.5% fee
   tariColdWalletAddress: '',
-  // Placeholders until the route hook resolves them by name against the current networks.
+  // Placeholders until the route hook resolves them by option against the current networks.
   fromNetwork: { name: 'Tari', icon: '/icons/tari.png', token: 'XTM', option: 'Tari' },
-  toNetwork: { name: 'Ethereum', icon: '/icons/eth.png', token: 'wXTM', option: { kind: 'evm', chainId: 1 } },
+  toNetwork: {
+    name: 'Ethereum',
+    icon: '/icons/eth.png',
+    token: 'wXTM',
+    option: { kind: 'evm', chainId: 1, asset: 'wxtm' },
+  },
   unwrapFailed: false,
   unwrapSuccess: false,
   exceededDailyLimit: false,

@@ -1,5 +1,5 @@
 import { ethers } from 'ethers'
-import { microXtmToXtm, parseWxtmTokenAmount } from '@/utils/parse-wxtm-token-amount'
+import { microXtmToXtm } from '@/utils/parse-wxtm-token-amount'
 import {
   OotleTokensUnwrappedService,
   TokensUnwrappedService,
@@ -12,7 +12,7 @@ import i18next from 'i18next'
 import { setLastOngoingBridgeTx } from '@/store/account'
 import { setBridgeError, setExceededDailyLimit } from '@/store/bridge'
 import useAppStore from '@/store/app'
-import { AssetConfig, amountAfterFee as getAmountAfterFee } from '@/utils/bridge-route'
+import { AssetConfig, amountAfterFee as getAmountAfterFee, evmToTariUnits } from '@/utils/bridge-route'
 import { isOotleAddress } from '@/utils/ootle-address'
 
 // wTARI and wTARIBridge expose the same eip712Domain and bridgeToTariWithAuthorization as wXTM and wXTMBridge.
@@ -137,8 +137,9 @@ export const useBridgeToTari = (ethAddress: `0x${string}`, asset: AssetConfig) =
 
       console.debug(`[ TAPPLET-BRIDGE ] Processing bridge to Tari...`)
 
+      let txHash
       try {
-        const txHash = await writeContract({
+        txHash = await writeContract({
           address: bridgeAddress,
           abi: bridgeAbi,
           functionName: 'bridgeToTariWithAuthorization',
@@ -154,16 +155,20 @@ export const useBridgeToTari = (ethAddress: `0x${string}`, asset: AssetConfig) =
           ],
           chainId,
         })
+      } catch (e) {
+        console.error(`[ TAPPLET-BRIDGE ] Error in bridge writeContract: ${e}`)
+        return false
+      }
 
+      // The burn is submitted; nothing below may report it as failed.
+      try {
         console.debug(`[ TAPPLET-BRIDGE ] Bridge transaction executed with txHash: ${txHash}, amount: ${value}`)
-
-        const amountAfterFee = getAmountAfterFee(value, asset.unwrapFeeBps)
 
         // set ongoing to immediately display wrap modal
         setLastOngoingBridgeTx({
           destinationAddress: tariAddress,
-          tokenAmount: parseWxtmTokenAmount(amount),
-          amountAfterFee: parseWxtmTokenAmount(ethers.utils.formatEther(amountAfterFee.toString())),
+          tokenAmount: evmToTariUnits(value),
+          amountAfterFee: evmToTariUnits(getAmountAfterFee(value, asset.unwrapFeeBps)),
           status: UserTransactionDTO.status.PENDING,
           createdAt: new Date().toISOString(),
           paymentId: '',
@@ -171,12 +176,10 @@ export const useBridgeToTari = (ethAddress: `0x${string}`, asset: AssetConfig) =
           type: 'unwrap',
           ootleChainId: asset.kind === 'ootle' ? chainId : undefined,
         })
-
-        return true
       } catch (e) {
-        console.error(`[ TAPPLET-BRIDGE ] Error in bridge writeContract: ${e}`)
-        return false
+        console.error(`[ TAPPLET-BRIDGE ] Error recording the submitted unwrap: ${e}`)
       }
+      return true
     } catch (err) {
       console.error(`[ TAPPLET-BRIDGE ] Error in bridge process: ${err}`)
       return false

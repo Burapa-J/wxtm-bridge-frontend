@@ -39,21 +39,15 @@ export function getExplorerUrl(chainId: number): string {
   return KNOWN_EVM_CHAINS[chainId]?.blockExplorers?.default.url ?? ''
 }
 
-// wXTM follows the connected wallet's chain when it has a wXTM deployment, as before, but never onto
-// a wTARI chain from the Ootle params, so the two assets never share a chainId.
+// wXTM follows the connected wallet's chain when it has a wXTM deployment, as before.
 export function getWxtmAsset(
   connectedChainId: number | undefined,
   isMainNet: boolean,
   wrapFeeBps: number,
   unwrapFeeBps: number,
-  wtariChainIds: number[],
 ): AssetConfig {
   let chainId: number = isMainNet ? mainnet.id : sepolia.id
-  if (
-    connectedChainId !== undefined &&
-    getDeployments(connectedChainId).wXTM &&
-    !wtariChainIds.includes(connectedChainId)
-  ) {
+  if (connectedChainId !== undefined && getDeployments(connectedChainId).wXTM) {
     chainId = connectedChainId
   }
   const deployments = getDeployments(chainId)
@@ -136,17 +130,23 @@ export function getOotleAssets(params: GetOotleWrapTokenParamsRespDTO): AssetCon
   return assets
 }
 
-function isEvmOn(option: NetworkOption, chainId: number): boolean {
-  return typeof option === 'object' && option.chainId === chainId
+function isEvmFor(option: NetworkOption, asset: AssetConfig): boolean {
+  return typeof option === 'object' && option.asset === asset.kind && option.chainId === asset.chainId
+}
+
+// The same selector entry; the wXTM chain follows the wallet, so wXTM entries match on asset alone.
+function isSameOption(a: NetworkOption, b: NetworkOption): boolean {
+  if (typeof a !== 'object' || typeof b !== 'object') return a === b
+  return a.asset === b.asset && (a.asset === 'wxtm' || a.chainId === b.chainId)
 }
 
 // Valid routes: Tari <-> the wXTM chain, and Ootle <-> each wTARI chain (wrapping only to active chains).
 export function deriveRoute(from: NetworkOption, to: NetworkOption, assets: AssetConfig[]): BridgeRoute | undefined {
   for (const asset of assets) {
-    if (from === asset.tariNetwork && isEvmOn(to, asset.chainId) && asset.status === 'active') {
+    if (from === asset.tariNetwork && isEvmFor(to, asset) && asset.status === 'active') {
       return { asset, isWrapping: true }
     }
-    if (to === asset.tariNetwork && isEvmOn(from, asset.chainId)) {
+    if (to === asset.tariNetwork && isEvmFor(from, asset)) {
       return { asset, isWrapping: false }
     }
   }
@@ -160,12 +160,12 @@ export function getNetworkChoices(assets: AssetConfig[]): Network[] {
     if (!networks.some((n) => n.name === asset.tariNetwork)) {
       networks.push({ name: asset.tariNetwork, icon: TARI_ICON, token: asset.tariToken, option: asset.tariNetwork })
     }
-    if (!networks.some((n) => n.name === asset.chainName)) {
+    if (!networks.some((n) => isEvmFor(n.option, asset))) {
       networks.push({
         name: asset.chainName,
         icon: EVM_ICON,
         token: asset.evmToken,
-        option: { kind: 'evm', chainId: asset.chainId },
+        option: { kind: 'evm', chainId: asset.chainId, asset: asset.kind },
       })
     }
   }
@@ -203,15 +203,15 @@ export function pickNetwork(
   return undefined
 }
 
-// Resolves the stored selection by name against the current networks; falls back to the first route.
+// Resolves the stored selection against the current networks; falls back to the first route.
 export function resolveSelection(
-  fromName: string,
-  toName: string,
+  fromOption: NetworkOption,
+  toOption: NetworkOption,
   networks: Network[],
   assets: AssetConfig[],
 ): { from: Network; to: Network; route: BridgeRoute } {
-  const from = networks.find((n) => n.name === fromName)
-  const to = networks.find((n) => n.name === toName)
+  const from = networks.find((n) => isSameOption(n.option, fromOption))
+  const to = networks.find((n) => isSameOption(n.option, toOption))
   if (from && to) {
     const route = deriveRoute(from.option, to.option, assets)
     if (route) return { from, to, route }
@@ -220,8 +220,8 @@ export function resolveSelection(
   // assets[0] is always the wXTM asset, which is active.
   const asset = assets[0]
   return {
-    from: networks.find((n) => n.name === asset.tariNetwork) as Network,
-    to: networks.find((n) => n.name === asset.chainName) as Network,
+    from: networks.find((n) => n.option === asset.tariNetwork) as Network,
+    to: networks.find((n) => isEvmFor(n.option, asset)) as Network,
     route: { asset, isWrapping: true },
   }
 }
@@ -240,4 +240,9 @@ export function getUnlistedOotleLabels(chainId: number): { tariToken: string; ev
 
 export function amountAfterFee(value: bigint, feeBps: number): bigint {
   return value - (value * BigInt(feeBps)) / BigInt(10000)
+}
+
+// An 18-decimal EVM amount in 6-decimal Tari units, rounded down, as a string.
+export function evmToTariUnits(value: bigint): string {
+  return (value / BigInt(10) ** BigInt(12)).toString()
 }

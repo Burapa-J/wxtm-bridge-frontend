@@ -4,6 +4,7 @@ import { base, baseSepolia, mainnet, sepolia } from 'viem/chains'
 import {
   amountAfterFee,
   deriveRoute,
+  evmToTariUnits,
   getNetworkChoices,
   getOotleAssets,
   getTransactionAsset,
@@ -22,6 +23,10 @@ const { WTARI_DEPLOYMENTS } = await vi.hoisted(async () => {
     [chains.base.id]: {
       wTARI: '0x3333333333333333333333333333333333333333',
       wTARIBridge: '0x4444444444444444444444444444444444444444',
+    },
+    [chains.sepolia.id]: {
+      wTARI: '0x7777777777777777777777777777777777777777',
+      wTARIBridge: '0x8888888888888888888888888888888888888888',
     },
   }
   return { WTARI_DEPLOYMENTS: deployments }
@@ -123,12 +128,12 @@ describe('getOotleAssets', () => {
 
 describe('deriveRoute', () => {
   vi.spyOn(console, 'warn').mockImplementation(() => {})
-  const wxtm = getWxtmAsset(undefined, true, 50, 50, [])
+  const wxtm = getWxtmAsset(undefined, true, 50, 50)
   const assets = [wxtm, ...getOotleAssets(fixture)]
-  const activeChain = { kind: 'evm' as const, chainId: baseSepolia.id }
-  const retiringChain = { kind: 'evm' as const, chainId: base.id }
-  const unknownChain = { kind: 'evm' as const, chainId: UNKNOWN_CHAIN_ID }
-  const ethereum = { kind: 'evm' as const, chainId: wxtm.chainId }
+  const activeChain = { kind: 'evm' as const, chainId: baseSepolia.id, asset: 'ootle' as const }
+  const retiringChain = { kind: 'evm' as const, chainId: base.id, asset: 'ootle' as const }
+  const unknownChain = { kind: 'evm' as const, chainId: UNKNOWN_CHAIN_ID, asset: 'ootle' as const }
+  const ethereum = { kind: 'evm' as const, chainId: wxtm.chainId, asset: 'wxtm' as const }
 
   it('routes Tari <-> Ethereum to wXTM', () => {
     expect(deriveRoute('Tari', ethereum, assets)).toEqual({ asset: wxtm, isWrapping: true })
@@ -171,37 +176,50 @@ describe('deriveRoute', () => {
 })
 
 describe('getWxtmAsset', () => {
-  it('follows the wallet onto a wXTM chain', () => {
-    expect(getWxtmAsset(baseSepolia.id, false, 50, 50, []).chainId).toBe(baseSepolia.id)
+  it('follows the wallet onto a wXTM chain, even one that also has wTARI', () => {
+    expect(getWxtmAsset(baseSepolia.id, false, 50, 50).chainId).toBe(baseSepolia.id)
   })
+})
 
-  it('does not follow the wallet onto a wTARI chain, so routes never share a chainId', () => {
+describe('wXTM and wTARI on the same chain', () => {
+  it('stay two distinct network options with separate routes', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const ootleAssets = getOotleAssets(fixture)
-    const wxtm = getWxtmAsset(
-      baseSepolia.id,
-      false,
-      50,
-      50,
-      ootleAssets.map((a) => a.chainId),
-    )
-    const assets = [wxtm, ...ootleAssets]
+    const wxtm = getWxtmAsset(sepolia.id, false, 50, 50)
+    const assets = [
+      wxtm,
+      ...getOotleAssets(params([chain(sepolia.id, OotlePublicEvmChainDTO.status.ACTIVE, 'Sepolia')])),
+    ]
+    const wxtmOption = { kind: 'evm' as const, chainId: sepolia.id, asset: 'wxtm' as const }
+    const wtariOption = { kind: 'evm' as const, chainId: sepolia.id, asset: 'ootle' as const }
 
     expect(wxtm.chainId).toBe(sepolia.id)
-    expect(deriveRoute('Tari', { kind: 'evm', chainId: baseSepolia.id }, assets)).toBeUndefined()
-    expect(deriveRoute('Ootle', { kind: 'evm', chainId: wxtm.chainId }, assets)).toBeUndefined()
-    expect(new Set(getNetworkChoices(assets).map((n) => JSON.stringify(n.option))).size).toBe(5)
+    expect(getNetworkChoices(assets).map((n) => n.option)).toEqual(['Tari', wxtmOption, 'Ootle', wtariOption])
+    expect(deriveRoute('Tari', wxtmOption, assets)?.asset.kind).toBe('wxtm')
+    expect(deriveRoute('Ootle', wtariOption, assets)?.asset.kind).toBe('ootle')
+    expect(deriveRoute('Tari', wtariOption, assets)).toBeUndefined()
+    expect(deriveRoute('Ootle', wxtmOption, assets)).toBeUndefined()
+    expect(deriveRoute(wtariOption, 'Tari', assets)).toBeUndefined()
+    expect(deriveRoute(wxtmOption, 'Ootle', assets)).toBeUndefined()
   })
 })
 
 describe('getTransactionAsset', () => {
   it('picks the Ootle chain asset, else wXTM', () => {
     vi.spyOn(console, 'warn').mockImplementation(() => {})
-    const assets = [getWxtmAsset(undefined, true, 50, 50, []), ...getOotleAssets(fixture)]
+    const assets = [getWxtmAsset(undefined, true, 50, 50), ...getOotleAssets(fixture)]
 
     expect(getTransactionAsset(undefined, assets)?.kind).toBe('wxtm')
     expect(getTransactionAsset(base.id, assets)?.chainId).toBe(base.id)
     expect(getTransactionAsset(UNKNOWN_CHAIN_ID, assets)).toBeUndefined()
+  })
+})
+
+describe('evmToTariUnits', () => {
+  it('converts an after-fee amount with more than 6 decimals without throwing', () => {
+    // 1234.567891 at 50 bps is 1228.395051545
+    const value = BigInt(1234567891) * BigInt(10) ** BigInt(12)
+    expect(evmToTariUnits(amountAfterFee(value, 50))).toBe('1228395051')
+    expect(evmToTariUnits(value)).toBe('1234567891')
   })
 })
 
