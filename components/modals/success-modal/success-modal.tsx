@@ -59,7 +59,8 @@ export const SuccessModal = ({
   const handleAddWxtmToWalletAction = useCallback(() => {
     if (!asset) return
     console.info('[ TAPPLET-BRIDGE ] Adding WXTM token to the wallet initiated')
-    addTokenToWalletAction(asset)
+    // wTARI lives on the route's chain, so ask the wallet to switch there first.
+    addTokenToWalletAction(asset, asset.kind === 'ootle')
       .then(() => {
         console.info('[ TAPPLET-BRIDGE ] Adding WXTM token to the wallet successful')
       })

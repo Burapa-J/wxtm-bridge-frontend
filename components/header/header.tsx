@@ -8,7 +8,7 @@ import { truncateAddress } from '@/utils/truncate'
 import { NetworkSwitchModal } from '@/components/modals/network-switch-modal'
 import { chainsMap, SupportedChain } from '@/utils/networksConfig'
 import { KNOWN_EVM_CHAINS } from '@/utils/evm-chains'
-import { useBridgeStore } from '@/store/bridge'
+import { setBridgeError, useBridgeStore } from '@/store/bridge'
 import { BridgeHistoryListItem } from '../transactions/BridgeListItem'
 
 import { useBridgeStatus } from '@/hooks/use-bridge-status'
@@ -53,6 +53,8 @@ export const Header = () => {
   }
   const handleConnectClick = () => {
     if (!isConnected) {
+      // a new flow starts; drop any error left from an earlier one
+      setBridgeError('')
       setModalStep(0)
       setIsModalOpen(true)
     }

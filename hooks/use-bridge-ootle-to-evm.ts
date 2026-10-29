@@ -1,7 +1,6 @@
 import { ApiError, OotleWrapTokenService, UserTransactionDTO } from '@tari-project/wxtm-bridge-backend-api'
 import i18next from 'i18next'
 import { isAddress } from 'viem'
-import { useConnection } from 'wagmi'
 
 import { BridgeTxDetails } from '@/clients/tari-l1-signer'
 import { sendOotleStealth, waitOotleTransaction } from '@/clients/tari-ootle-signer'
@@ -40,8 +39,7 @@ export const useBridgeOotleToEvm = () => {
   const signer = useTariSigner((s) => s.signer)
   const ootleAccount = useTariAccountStore((s) => s.ootleAccount)
   const coldAccountAddress = useBridgeStore((s) => s.ootleColdAccountAddress)
-  const { chain } = useConnection()
-  const { addTokenToWalletAction } = useWalletUtils()
+  const { addTokenToWalletAction, isWalletOnChain } = useWalletUtils()
   const { getUserBackendBridgeTxs } = useBridgeTransaction()
 
   // Waits for the deposit and, only once it is Accepted, marks the wrap as sent.
@@ -90,7 +88,7 @@ export const useBridgeOotleToEvm = () => {
       await refreshOotleBalance()
       await getUserBackendBridgeTxs()
 
-      if (asset && chain?.id === asset.chainId) {
+      if (asset && isWalletOnChain(asset.chainId)) {
         await addTokenToWalletAction(asset)
       }
     } catch (error) {
@@ -186,6 +184,9 @@ export const useBridgeOotleToEvm = () => {
       // The deposit was sent; keep the stored tx so the next load can retry tokens-sent.
       console.error('[ TAPPLET-BRIDGE ] Could not confirm the Ootle deposit: ', errorSummary(error))
       setBridgeError(t('ootle_wrap_unconfirmed'))
+      // reopen the modal if the user closed it during the wait
+      const ongoing = useTariAccountStore.getState().ongoingBridgeTx
+      if (ongoing) setLastOngoingBridgeTx({ ...ongoing, showModal: true })
     }
   }
 

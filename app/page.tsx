@@ -79,6 +79,7 @@ export default function Home() {
   }, [getUserBackendBridgeTxs, tariAccount])
 
   const onNetworkChange = useEffectEvent(() => setRemainingDailyLimit(undefined))
+  const onOotleAccountReady = useEffectEvent(() => fetchUserTransactions())
   const onFetchedParams = useEffectEvent((hasFetched: boolean) => setHasFetchedParams(hasFetched))
 
   useEffect(() => {
@@ -130,6 +131,12 @@ export default function Home() {
     const interval = setInterval(fetchDailyLimit, REFETCH_LIMIT_INTERVAL)
     return () => clearInterval(interval)
   }, [fetchDailyLimit, isWrapping])
+
+  // The Ootle account loads after the first fetch; fetch again to include its transactions.
+  const ootleAddress = ootleAccount?.address
+  useEffect(() => {
+    if (ootleAddress) onOotleAccountReady()
+  }, [ootleAddress])
 
   // Finish an Ootle wrap whose deposit was sent before the last reload.
   useEffect(() => {

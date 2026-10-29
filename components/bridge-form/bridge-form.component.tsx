@@ -17,7 +17,7 @@ import { useTranslation } from 'react-i18next'
 import { MainComponentProps } from '../main'
 import { setIsModalOpen, setModalStep } from '@/store/modal'
 import { useFormContext } from 'react-hook-form'
-import { setNetworks } from '@/store/bridge'
+import { setBridgeError, setNetworks } from '@/store/bridge'
 import { useTariAccountStore } from '@/store/account'
 
 export const BridgeForm = ({ remainingDailyLimit }: MainComponentProps) => {
@@ -49,12 +49,15 @@ export const BridgeForm = ({ remainingDailyLimit }: MainComponentProps) => {
 
   const handleConnectClick = () => {
     if (!isConnected) {
+      // a new flow starts; drop any error left from an earlier one
+      setBridgeError('')
       setModalStep(0)
       setIsModalOpen(true)
     }
   }
 
   const handleContinueClick = () => {
+    setBridgeError('')
     setModalStep(1)
     setIsModalOpen(true)
   }
