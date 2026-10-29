@@ -92,6 +92,9 @@ export const useBridgeOotleToEvm = () => {
       console.info('[ TAPPLET-BRIDGE ] Ootle wrap already past tokens-sent: ', tx.paymentId)
     }
 
+    // Confirmed: new bridges may start while the follow-ups (e.g. a wallet prompt) run.
+    setOotleWrapInFlight(false)
+
     // The wrap is confirmed; failures below are only logged.
     try {
       // The clientToken is no longer needed; keep the rest so a reload can still show the outcome.
