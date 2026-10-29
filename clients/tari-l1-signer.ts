@@ -66,7 +66,8 @@ export class TariL1Signer {
   private async sendRequest<MethodName extends SignerMethodNames>(
     req: Omit<SignerRequest<MethodName>, 'id'>,
   ): Promise<SignerReturnType<MethodName>> {
-    return sendSignerCall(req.methodName, req.args) as Promise<SignerReturnType<MethodName>>
+    const timeoutMs = req.methodName === 'sendOneSided' ? SIGNER_SEND_TIMEOUT_MS : undefined
+    return sendSignerCall(req.methodName, req.args, timeoutMs) as Promise<SignerReturnType<MethodName>>
   }
 
   /**
@@ -212,12 +213,26 @@ export class TariL1Signer {
 
 // Every signer client shares this one postMessage channel. Ids are random so another frame can't guess
 // them, and only replies from Universe (the parent window) are accepted.
-export function sendSignerCall(methodName: string, args: unknown[]): Promise<unknown> {
+const SIGNER_CALL_TIMEOUT_MS = 60_000
+// Sends wait for the user to enter their PIN in Universe.
+export const SIGNER_SEND_TIMEOUT_MS = 10 * 60_000
+
+export function sendSignerCall(
+  methodName: string,
+  args: unknown[],
+  timeoutMs = SIGNER_CALL_TIMEOUT_MS,
+): Promise<unknown> {
   const id = crypto.randomUUID()
   return new Promise<unknown>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      window.removeEventListener('message', event_ref)
+      reject(new Error(`Signer call ${methodName} timed out`))
+    }, timeoutMs)
+
     const event_ref = (resp: MessageEvent<SignerResponse<SignerMethodNames>>) => {
       if (resp.source !== window.parent) return
       if (!resp.data || resp.data.id !== id || resp.data.type !== 'signer-call') return
+      clearTimeout(timer)
       window.removeEventListener('message', event_ref)
       if (resp.data.resultError) {
         reject(resp.data.resultError)

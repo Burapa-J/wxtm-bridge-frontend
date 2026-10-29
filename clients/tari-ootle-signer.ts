@@ -1,4 +1,4 @@
-import { sendSignerCall } from './tari-l1-signer'
+import { SIGNER_SEND_TIMEOUT_MS, sendSignerCall } from './tari-l1-signer'
 
 // Universe's Ootle (L2) signer methods, over the same signer-call channel as TariL1Signer.
 
@@ -45,10 +45,11 @@ export function toOotleSignerError(error: unknown): OotleSignerError {
   return new OotleSignerError('failed')
 }
 
-async function callOotleSigner(methodName: string, args: unknown[]): Promise<unknown> {
+// A timed-out call rejects with a plain error, which maps to 'failed'.
+async function callOotleSigner(methodName: string, args: unknown[], timeoutMs?: number): Promise<unknown> {
   let result: unknown
   try {
-    result = await sendSignerCall(methodName, args)
+    result = await sendSignerCall(methodName, args, timeoutMs)
   } catch (error) {
     throw toOotleSignerError(error)
   }
@@ -82,7 +83,7 @@ export async function getOotleBalance(): Promise<OotleBalance> {
 }
 
 export async function sendOotleStealth(req: SendOotleStealthRequest): Promise<{ transactionId: string }> {
-  const result = await callOotleSigner('sendOotleStealth', [req])
+  const result = await callOotleSigner('sendOotleStealth', [req], SIGNER_SEND_TIMEOUT_MS)
   requireStrings(result, ['transactionId'])
   return result as { transactionId: string }
 }
@@ -91,7 +92,12 @@ export async function waitOotleTransaction(
   transactionId: string,
   timeoutSecs: number,
 ): Promise<OotleTransactionResult> {
-  const result = await callOotleSigner('waitOotleTransaction', [{ transactionId, timeoutSecs }])
+  // Universe answers by timeoutSecs; the extra minute covers its polling and the round trip.
+  const result = await callOotleSigner(
+    'waitOotleTransaction',
+    [{ transactionId, timeoutSecs }],
+    (timeoutSecs + 60) * 1000,
+  )
   requireStrings(result, ['status'])
   return result as OotleTransactionResult
 }

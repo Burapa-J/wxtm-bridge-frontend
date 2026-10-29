@@ -9,7 +9,7 @@ import {
   waitOotleTransaction,
 } from './tari-ootle-signer'
 
-vi.mock('./tari-l1-signer', () => ({ sendSignerCall: vi.fn() }))
+vi.mock('./tari-l1-signer', () => ({ sendSignerCall: vi.fn(), SIGNER_SEND_TIMEOUT_MS: 600000 }))
 
 const mockedSendSignerCall = vi.mocked(sendSignerCall)
 
@@ -37,7 +37,7 @@ describe('Ootle signer calls', () => {
     const req = { amount: '1000000', address: 'otl_esm_cold', payRef: '9b2f4c1e-3a5d-4e6f-8a7b-1c2d3e4f5a6b' }
 
     await expect(sendOotleStealth(req)).resolves.toEqual({ transactionId: 'tx-1' })
-    expect(mockedSendSignerCall).toHaveBeenCalledWith('sendOotleStealth', [req])
+    expect(mockedSendSignerCall).toHaveBeenCalledWith('sendOotleStealth', [req], 600000)
   })
 
   it('turns an l2_unavailable result into an OotleSignerError', async () => {
@@ -69,5 +69,18 @@ describe('Ootle signer calls', () => {
       expect(error).toBeInstanceOf(OotleSignerError)
       expect(error.code).toBe('failed')
     }
+  })
+
+  it('maps a timed-out call to failed and gives the wait its timeout plus a minute', async () => {
+    mockedSendSignerCall.mockRejectedValue(new Error('Signer call waitOotleTransaction timed out'))
+
+    const error = await waitOotleTransaction('tx-1', 600).catch((e) => e)
+    expect(error).toBeInstanceOf(OotleSignerError)
+    expect(error.code).toBe('failed')
+    expect(mockedSendSignerCall).toHaveBeenCalledWith(
+      'waitOotleTransaction',
+      [{ transactionId: 'tx-1', timeoutSecs: 600 }],
+      660000,
+    )
   })
 })

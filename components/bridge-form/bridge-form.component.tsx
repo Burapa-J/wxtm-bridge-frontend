@@ -19,9 +19,14 @@ import { setIsModalOpen, setModalStep } from '@/store/modal'
 import { useFormContext } from 'react-hook-form'
 import { setBridgeError, setNetworks, useBridgeStore } from '@/store/bridge'
 import { useTariAccountStore } from '@/store/account'
+import useTariSigner from '@/store/signer'
+import { useBridgeOotleToEvm } from '@/hooks/use-bridge-ootle-to-evm'
+import { errorSummary } from '@/utils/error-summary'
 
 export const BridgeForm = ({ remainingDailyLimit }: MainComponentProps) => {
   const { t } = useTranslation('main', { useSuspense: false })
+  const signer = useTariSigner((s) => s.signer)
+  const { finishOotleWrap } = useBridgeOotleToEvm()
   const { assets, networks, from: fromNetwork, to: toNetwork, route } = useBridgeRoute()
   const { asset, isWrapping } = route
   // No new bridge while an Ootle deposit awaits confirmation; it would take over the ongoing tx.
@@ -58,8 +63,27 @@ export const BridgeForm = ({ remainingDailyLimit }: MainComponentProps) => {
     }
   }
 
-  const handleContinueClick = () => {
+  const handleContinueClick = async () => {
     setBridgeError('')
+    // Universe keeps one ongoing tx; a new bridge would overwrite an Ootle wrap's clientToken there.
+    let unfinished = useTariAccountStore.getState().ootleWrapToResume
+    if (!unfinished && signer) {
+      try {
+        unfinished = await signer.getOngoingBridgeTx()
+      } catch (error) {
+        console.error('[ TAPPLET-BRIDGE ] Could not read the ongoing bridge tx: ', error)
+      }
+    }
+    if (unfinished?.network === 'Ootle' && unfinished.clientToken) {
+      setBridgeError(t('ootle_wrap_unfinished'))
+      setModalStep(1)
+      setIsModalOpen(true)
+      // retry it now; Continue stays disabled while it runs
+      finishOotleWrap(unfinished).catch((error) =>
+        console.error('[ TAPPLET-BRIDGE ] Retrying the Ootle wrap failed: ', errorSummary(error)),
+      )
+      return
+    }
     setModalStep(1)
     setIsModalOpen(true)
   }

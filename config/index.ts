@@ -11,4 +11,7 @@ export const config = {
     'https://www.coinspect.com/doc/Coinspect%20-%20Smart%20Contract%20Audit%20-%20Tari%20-%20wXTM%20Bridge%20-%20Fix%20Review%20-%20v250528.pdf',
   MAINNET_EXPLORER_URL: 'https://etherscan.io',
   MICRO_XTM_PER_XTM: 1_000_000,
+  // Tari Universe webview origins allowed to frame the tapplet (Tauri v2 with useHttpsScheme:
+  // tauri://localhost on macOS/Linux, https://tauri.localhost on Windows; Universe dev server on 1420).
+  UNIVERSE_ORIGINS: ['tauri://localhost', 'https://tauri.localhost', 'http://tauri.localhost', 'http://localhost:1420'],
 }

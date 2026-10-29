@@ -10,7 +10,8 @@ import TariL1Signer from '@/clients/tari-l1-signer'
 import { useIframeMessage } from '@/utils/useIframeMessage'
 import useAppStore, { setAppConfig } from '@/store/app'
 import useTariSignerStore, { setSigner } from '@/store/signer'
-import { getInitConfig } from '@/utils/universe'
+import { checkTappletHost, getInitConfig } from '@/utils/universe'
+import { config as appConfig } from '@/config'
 import { queryClient } from '@/app/queryClient'
 
 export const Providers = ({ children }: { children: ReactNode }) => {
@@ -46,6 +47,23 @@ export const Providers = ({ children }: { children: ReactNode }) => {
 
     const initializeSignerAndAccount = async () => {
       if (!signer && !cancelled) {
+        // Whoever frames the tapplet answers its signer calls, so only accept Universe.
+        // The dev server runs the tapplet standalone, so the check is skipped there.
+        if (process.env.NODE_ENV !== 'development') {
+          const host = checkTappletHost(
+            window.parent !== window,
+            window.location.ancestorOrigins,
+            appConfig.UNIVERSE_ORIGINS,
+          )
+          if (host === 'untrusted') {
+            console.error('[ TAPPLET-BRIDGE ] Not framed by Tari Universe; the signer is disabled')
+            initializedSignerRef.current = true
+            return
+          }
+          if (host === 'unverified') {
+            console.warn('[ TAPPLET-BRIDGE ] Cannot verify the framing origin; continuing')
+          }
+        }
         try {
           const signerParams: TariL1SignerParameters = { name: 'TariL1Signer', onConnection: setTariAccount }
           const newSigner = new TariL1Signer(signerParams)

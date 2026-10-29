@@ -109,6 +109,11 @@ describe('getOotleAssets', () => {
     expect(warn.mock.calls[0][0]).toContain(String(UNKNOWN_CHAIN_ID))
   })
 
+  it('labels chains with the viem name, not the params name', () => {
+    const [asset] = getOotleAssets(params([chain(baseSepolia.id, OotlePublicEvmChainDTO.status.ACTIVE, 'Ethereum')]))
+    expect(asset.chainName).toBe(baseSepolia.name)
+  })
+
   it('hides disabled chains', () => {
     expect(
       getOotleAssets(params([chain(baseSepolia.id, OotlePublicEvmChainDTO.status.DISABLED, 'Base Sepolia')])),

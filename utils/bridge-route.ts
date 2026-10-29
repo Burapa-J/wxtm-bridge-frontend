@@ -127,7 +127,8 @@ export function getOotleAssets(params: GetOotleWrapTokenParamsRespDTO): AssetCon
       tariToken: 'TARI',
       evmToken: 'wTARI',
       chainId: chain.chainId,
-      chainName: chain.name,
+      // the viem name, not the params one, so a backend can't relabel a chain
+      chainName: KNOWN_EVM_CHAINS[chain.chainId].name,
       status,
       tariDecimals: 6,
       evmDecimals: 18,
