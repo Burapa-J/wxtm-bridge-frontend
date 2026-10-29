@@ -26,6 +26,7 @@ import { errorSummary } from '@/utils/error-summary'
 export const BridgeForm = ({ remainingDailyLimit }: MainComponentProps) => {
   const { t } = useTranslation('main', { useSuspense: false })
   const signer = useTariSigner((s) => s.signer)
+  const ootleAccount = useTariAccountStore((s) => s.ootleAccount)
   const { finishOotleWrap } = useBridgeOotleToEvm()
   const { assets, networks, from: fromNetwork, to: toNetwork, route } = useBridgeRoute()
   const { asset, isWrapping } = route
@@ -66,8 +67,10 @@ export const BridgeForm = ({ remainingDailyLimit }: MainComponentProps) => {
   const handleContinueClick = async () => {
     setBridgeError('')
     // Universe keeps one ongoing tx; a new bridge would overwrite an Ootle wrap's clientToken there.
-    let unfinished = useTariAccountStore.getState().ootleWrapToResume
-    if (!unfinished && signer) {
+    // Only guarded while Ootle is usable: otherwise the wrap can't be retried here and the backend
+    // still reconciles its deposit.
+    let unfinished
+    if (ootleAccount && signer) {
       try {
         unfinished = await signer.getOngoingBridgeTx()
       } catch (error) {

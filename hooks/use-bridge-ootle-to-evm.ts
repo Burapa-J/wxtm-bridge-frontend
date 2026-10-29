@@ -4,7 +4,12 @@ import { isAddress } from 'viem'
 
 import { BridgeTxDetails } from '@/clients/tari-l1-signer'
 import { sendOotleStealth, waitOotleTransaction } from '@/clients/tari-ootle-signer'
-import { refreshOotleBalance, setLastOngoingBridgeTx, useTariAccountStore } from '@/store/account'
+import {
+  clearOotleWrapToResume,
+  refreshOotleBalance,
+  setLastOngoingBridgeTx,
+  useTariAccountStore,
+} from '@/store/account'
 import { setBridgeError, setOotleWrapInFlight, useBridgeStore } from '@/store/bridge'
 import useTariSigner from '@/store/signer'
 import { AssetConfig } from '@/utils/bridge-route'
@@ -76,7 +81,13 @@ export const useBridgeOotleToEvm = () => {
     }
     if (status !== 'Accepted') {
       console.error(`[ TAPPLET-BRIDGE ] Ootle deposit ${tx.paymentId} ended as ${status}`)
-      if (isStillOngoing(tx)) showWrapFailed(tx)
+      clearOotleWrapToResume()
+      if (isStillOngoing(tx)) {
+        // The wrap is dead: drop its record (and clientToken) from TU so it no longer blocks new bridges.
+        await signer.removeOngoingBridgeTx()
+        setBridgeError('')
+        showWrapFailed(tx)
+      }
       return
     }
 
@@ -94,6 +105,7 @@ export const useBridgeOotleToEvm = () => {
 
     // Confirmed: new bridges may start while the follow-ups (e.g. a wallet prompt) run.
     setOotleWrapInFlight(false)
+    clearOotleWrapToResume()
 
     // The wrap is confirmed; failures below are only logged.
     try {
