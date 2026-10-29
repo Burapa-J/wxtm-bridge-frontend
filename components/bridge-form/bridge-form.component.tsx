@@ -78,13 +78,27 @@ export const BridgeForm = ({ remainingDailyLimit }: MainComponentProps) => {
       }
     }
     if (unfinished?.network === 'Ootle' && unfinished.clientToken) {
-      setBridgeError(t('ootle_wrap_unfinished'))
+      const unfinishedText = t('ootle_wrap_unfinished')
+      setBridgeError(unfinishedText)
       setModalStep(1)
       setIsModalOpen(true)
-      // retry it now; Continue stays disabled while it runs
-      finishOotleWrap(unfinished).catch((error) =>
-        console.error('[ TAPPLET-BRIDGE ] Retrying the Ootle wrap failed: ', errorSummary(error)),
-      )
+      // Retry it now; Continue stays disabled while it runs. When it settles, replace the "retrying" text
+      // unless the retry already showed its own outcome.
+      finishOotleWrap(unfinished)
+        .then(async () => {
+          if (useBridgeStore.getState().bridgeError !== unfinishedText) return
+          const stored = await signer?.getOngoingBridgeTx()
+          if (stored?.network === 'Ootle' && stored.clientToken) {
+            setBridgeError(t('ootle_wrap_unconfirmed'))
+          } else {
+            setBridgeError('')
+            setIsModalOpen(false)
+          }
+        })
+        .catch((error) => {
+          console.error('[ TAPPLET-BRIDGE ] Retrying the Ootle wrap failed: ', errorSummary(error))
+          if (useBridgeStore.getState().bridgeError === unfinishedText) setBridgeError(t('ootle_wrap_unconfirmed'))
+        })
       return
     }
     setModalStep(1)
