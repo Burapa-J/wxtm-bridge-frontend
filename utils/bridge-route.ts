@@ -258,6 +258,17 @@ export function getUnlistedOotleLabels(chainId: number): { tariToken: string; ev
   return { tariToken: 'TARI', evmToken: 'wTARI', chainName: KNOWN_EVM_CHAINS[chainId]?.name ?? String(chainId) }
 }
 
+// Token and chain labels for a transaction: its asset, the unlisted-Ootle-chain labels, else the route's asset.
+export function getTransactionLabels(
+  asset: AssetConfig | undefined,
+  ootleChainId: number | undefined,
+  routeAsset: AssetConfig,
+): { tariToken: string; evmToken: string; chainName: string } {
+  if (asset) return asset
+  if (ootleChainId !== undefined) return getUnlistedOotleLabels(ootleChainId)
+  return routeAsset
+}
+
 export function amountAfterFee(value: bigint, feeBps: number): bigint {
   return value - (value * BigInt(feeBps)) / BigInt(10000)
 }

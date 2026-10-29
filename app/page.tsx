@@ -128,7 +128,7 @@ export default function Home() {
       onNetworkChange()
       return
     }
-    const interval = setInterval(fetchDailyLimit, REFETCH_LIMIT_INTERVAL)
+    const interval = setInterval(async () => setRemainingDailyLimit(await fetchDailyLimit()), REFETCH_LIMIT_INTERVAL)
     return () => clearInterval(interval)
   }, [fetchDailyLimit, isWrapping])
 

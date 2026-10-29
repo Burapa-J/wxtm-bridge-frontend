@@ -133,9 +133,9 @@ export const SuccessModal = ({
             </OfficialContractAddressConainer>
             <div style={{ height: 10 }} />
             <HelperText>
-              <div className="strong">{t('how_to_view_wxtm_in_wallet')}</div>
+              <div className="strong">{t('how_to_view_wxtm_in_wallet', { evmToken: asset.evmToken })}</div>
               <div>
-                {t('how_to_view_wxtm_step1_prefix')}
+                {t('how_to_view_wxtm_step1_prefix', { evmToken: asset.evmToken })}
                 <span className="strong">{t('token_address')}</span>
                 {t('how_to_view_wxtm_step1_middle')}
                 <span className="strong">{asset.kind === 'ootle' ? asset.chainName : t('ethereum_mainnet')}</span>

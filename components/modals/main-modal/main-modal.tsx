@@ -126,7 +126,15 @@ export const MainModal = ({
         />
       )
 
-    if (failed) return <FailedModal closeModalAction={closeModalAction} paymentId={undefined} />
+    if (failed)
+      return (
+        <FailedModal
+          closeModalAction={closeModalAction}
+          paymentId={undefined}
+          asset={ongoingAsset}
+          ootleChainId={ongoingBridgeTx?.ootleChainId}
+        />
+      )
 
     if (!isConnected && step === 0) return <ConnectionModal closeModalAction={closeModalAction} />
     if (step === 1)

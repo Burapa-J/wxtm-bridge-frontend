@@ -59,7 +59,14 @@ const TransactionDetailsModal = memo(function TransactionDetailsModal({
         )
 
       case 'timeout':
-        return <FailedModal closeModalAction={closeModalAction} paymentId={transaction.paymentId} />
+        return (
+          <FailedModal
+            closeModalAction={closeModalAction}
+            paymentId={transaction.paymentId}
+            asset={asset}
+            ootleChainId={transaction.ootleChainId}
+          />
+        )
 
       default:
         return <></>

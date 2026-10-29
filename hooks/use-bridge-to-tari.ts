@@ -1,5 +1,5 @@
 import { ethers } from 'ethers'
-import { microXtmToXtm } from '@/utils/parse-wxtm-token-amount'
+import { isOverDailyLimit } from '@/utils/parse-wxtm-token-amount'
 import {
   OotleTokensUnwrappedService,
   TokensUnwrappedService,
@@ -102,12 +102,10 @@ export const useBridgeToTari = (ethAddress: `0x${string}`, asset: AssetConfig) =
     setExceededDailyLimit(false)
     try {
       const limitMicro = await getRemainingDailyLimit()
-      const limitXtm = microXtmToXtm(limitMicro)
-      const amountNum = parseFloat(amount)
 
       // Stop before the chain switch and signing; the daily-limit banner tells the user why.
-      if (limitXtm && amountNum > limitXtm) {
-        console.warn(`[ TAPPLET-BRIDGE ] Daily limit exceeded. Limit: ${limitXtm}, Amount: ${amountNum}`)
+      if (isOverDailyLimit(amount, limitMicro)) {
+        console.warn(`[ TAPPLET-BRIDGE ] Daily limit exceeded. Limit: ${limitMicro} micro, Amount: ${amount}`)
         setExceededDailyLimit(true)
         return false
       }

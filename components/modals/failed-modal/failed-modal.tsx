@@ -8,11 +8,14 @@ import { useTranslation } from 'react-i18next'
 import { useBridgeStore } from '@/store/bridge'
 import { removeOngoingTransaction, useTariAccountStore } from '@/store/account'
 import { useBridgeRoute } from '@/hooks/use-bridge-route'
+import { getTransactionLabels } from '@/utils/bridge-route'
 
-export const FailedModal = ({ closeModalAction, paymentId: paymentIdProp }: FailedModalProps) => {
+export const FailedModal = ({ closeModalAction, paymentId: paymentIdProp, asset, ootleChainId }: FailedModalProps) => {
   const signer = useTariSigner((s) => s.signer)
   const bridgeError = useBridgeStore((s) => s.bridgeError)
-  const { isWrapping } = useBridgeRoute().route
+  const { route } = useBridgeRoute()
+  const { isWrapping } = route
+  const labels = getTransactionLabels(asset, ootleChainId, route.asset)
   const ongoingBridgeTx = useTariAccountStore((s) => s.ongoingBridgeTx)
   const { t } = useTranslation('main', { useSuspense: false })
 
@@ -33,7 +36,10 @@ export const FailedModal = ({ closeModalAction, paymentId: paymentIdProp }: Fail
           </div>
           <div className="font-semibold text-lg mt-2">{t('something_went_wrong')}</div>
           <div className="font-normal text-xs mt-2 text-center px-3">
-            {bridgeError || (isWrapping ? t('wrap_failed_message') : t('unwrap_failed_message'))}
+            {bridgeError ||
+              (isWrapping
+                ? t('wrap_failed_message', { tariToken: labels.tariToken })
+                : t('unwrap_failed_message', { evmToken: labels.evmToken, chain: labels.chainName }))}
           </div>
         </div>
 
