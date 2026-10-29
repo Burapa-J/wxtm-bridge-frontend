@@ -7,12 +7,14 @@ import {
   evmToTariUnits,
   getNetworkChoices,
   getOotleAssets,
+  getSafeExplorerUrl,
   getTransactionAsset,
   getWxtmAsset,
   isSameOption,
   networkOptionKey,
   pickNetwork,
 } from './bridge-route'
+import { KNOWN_EVM_CHAINS } from './evm-chains'
 
 // The contracts package has no wTARI deployments yet, so the tests supply some.
 const { WTARI_DEPLOYMENTS } = await vi.hoisted(async () => {
@@ -54,7 +56,7 @@ function chain(chainId: number, status: OotlePublicEvmChainDTO.status, name: str
     wTARIBridge: (
       WTARI_DEPLOYMENTS[chainId]?.wTARIBridge ?? '0x6666666666666666666666666666666666666666'
     ).toUpperCase(),
-    explorerUrl: `https://explorer-${chainId}.example`,
+    explorerUrl: `${KNOWN_EVM_CHAINS[chainId]?.blockExplorers?.default.url ?? 'https://unknown.example'}/`,
   }
 }
 
@@ -81,6 +83,8 @@ afterEach(() => {
 describe('getOotleAssets', () => {
   it('keeps active and unwrap_only chains and hides an unknown chain with a warning', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    // count only this test's calls; spies made while collecting other suites are reused
+    warn.mockClear()
 
     const assets = getOotleAssets(fixture)
 
@@ -97,7 +101,7 @@ describe('getOotleAssets', () => {
       evmDecimals: 18,
       tokenAddress: WTARI_DEPLOYMENTS[baseSepolia.id].wTARI,
       bridgeAddress: WTARI_DEPLOYMENTS[baseSepolia.id].wTARIBridge,
-      explorerUrl: `https://explorer-${baseSepolia.id}.example`,
+      explorerUrl: baseSepolia.blockExplorers.default.url,
       wrapFeeBps: 30,
       unwrapFeeBps: 40,
     })
@@ -113,6 +117,7 @@ describe('getOotleAssets', () => {
 
   it('refuses a chain whose params addresses do not match getDeployments', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    warn.mockClear()
     const mismatched = {
       ...chain(baseSepolia.id, OotlePublicEvmChainDTO.status.ACTIVE, 'Base Sepolia'),
       wTARI: '0x9999999999999999999999999999999999999999',
@@ -213,6 +218,25 @@ describe('getTransactionAsset', () => {
     expect(getTransactionAsset(undefined, assets)?.kind).toBe('wxtm')
     expect(getTransactionAsset(base.id, assets)?.chainId).toBe(base.id)
     expect(getTransactionAsset(UNKNOWN_CHAIN_ID, assets)).toBeUndefined()
+  })
+})
+
+describe('getSafeExplorerUrl', () => {
+  const known = baseSepolia.blockExplorers.default.url
+
+  it('accepts an https params URL on the known explorer host', () => {
+    expect(getSafeExplorerUrl(baseSepolia.id, `${known}/`)).toBe(known)
+  })
+
+  it('falls back to the known explorer otherwise', () => {
+    expect(getSafeExplorerUrl(baseSepolia.id, known.replace('https:', 'http:'))).toBe(known)
+    expect(getSafeExplorerUrl(baseSepolia.id, 'https://evil.example')).toBe(known)
+    expect(getSafeExplorerUrl(baseSepolia.id, 'javascript:alert(1)')).toBe(known)
+    expect(getSafeExplorerUrl(baseSepolia.id, 'not a url')).toBe(known)
+  })
+
+  it('gives nothing for a chain without a known explorer', () => {
+    expect(getSafeExplorerUrl(UNKNOWN_CHAIN_ID, 'https://explorer.example')).toBe('')
   })
 })
 

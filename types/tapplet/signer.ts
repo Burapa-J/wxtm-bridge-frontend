@@ -15,13 +15,13 @@ export type SignerMethodNames = keyof SignerMethods
 export type SignerReturnType<T extends SignerMethodNames> = Awaited<ReturnType<SignerMethods[T]>>
 
 export type SignerRequest<T extends SignerMethodNames> = {
-  id: number
+  id: string
   methodName: T
   args: Parameters<SignerMethods[T]>
 }
 
 export type SignerResponse<T extends SignerMethodNames> = {
-  id: number
+  id: string
   type: 'signer-call'
   result: SignerReturnType<T>
   resultError?: string

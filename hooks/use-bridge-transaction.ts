@@ -25,16 +25,20 @@ import {
 } from '@/store/account'
 
 const OOTLE_PAGE_LIMIT = 100
+// Stops a misbehaving backend from keeping this loop going.
+const OOTLE_MAX_PAGES = 50
 
-async function fetchAllPages<T>(
+export async function fetchAllPages<T>(
   fetchPage: (limit: number, offset: number) => Promise<{ transactions: T[]; total: number }>,
 ): Promise<T[]> {
   const all: T[] = []
-  while (true) {
+  for (let i = 0; i < OOTLE_MAX_PAGES; i++) {
     const page = await fetchPage(OOTLE_PAGE_LIMIT, all.length)
     all.push(...page.transactions)
-    if (page.transactions.length === 0 || all.length >= page.total) return all
+    const total = Number(page.total)
+    if (page.transactions.length === 0 || !Number.isFinite(total) || all.length >= total) break
   }
+  return all
 }
 
 // Ootle wrap listings carry a display reference instead of the paymentId; it stands in as the key.

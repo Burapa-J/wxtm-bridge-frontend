@@ -61,21 +61,37 @@ async function callOotleSigner(methodName: string, args: unknown[]): Promise<unk
   return result
 }
 
+// Universe's reply must carry these string fields; anything else is treated as a failure.
+function requireStrings(result: unknown, fields: string[]): void {
+  const record = result as Record<string, unknown>
+  for (const field of fields) {
+    if (typeof record[field] !== 'string') throw new OotleSignerError('failed')
+  }
+}
+
 export async function getOotleAccount(): Promise<OotleAccount> {
-  return (await callOotleSigner('getOotleAccount', [])) as OotleAccount
+  const result = await callOotleSigner('getOotleAccount', [])
+  requireStrings(result, ['address', 'network'])
+  return result as OotleAccount
 }
 
 export async function getOotleBalance(): Promise<OotleBalance> {
-  return (await callOotleSigner('getOotleBalance', [])) as OotleBalance
+  const result = await callOotleSigner('getOotleBalance', [])
+  requireStrings(result, ['available', 'pending'])
+  return result as OotleBalance
 }
 
 export async function sendOotleStealth(req: SendOotleStealthRequest): Promise<{ transactionId: string }> {
-  return (await callOotleSigner('sendOotleStealth', [req])) as { transactionId: string }
+  const result = await callOotleSigner('sendOotleStealth', [req])
+  requireStrings(result, ['transactionId'])
+  return result as { transactionId: string }
 }
 
 export async function waitOotleTransaction(
   transactionId: string,
   timeoutSecs: number,
 ): Promise<OotleTransactionResult> {
-  return (await callOotleSigner('waitOotleTransaction', [{ transactionId, timeoutSecs }])) as OotleTransactionResult
+  const result = await callOotleSigner('waitOotleTransaction', [{ transactionId, timeoutSecs }])
+  requireStrings(result, ['status'])
+  return result as OotleTransactionResult
 }

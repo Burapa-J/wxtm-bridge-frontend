@@ -24,7 +24,7 @@ permissions:
 
 env:
   NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  NODE_VERSION: 20.18.0
+  NODE_VERSION: 22
   TS_FILENAME: "bridge"
 
 jobs:

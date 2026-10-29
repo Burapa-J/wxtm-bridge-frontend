@@ -98,14 +98,18 @@ export const useBridgeToTari = (ethAddress: `0x${string}`, asset: AssetConfig) =
       return false
     }
 
+    // set again below if this unwrap is over the limit; callers read it when this returns false
+    setExceededDailyLimit(false)
     try {
       const limitMicro = await getRemainingDailyLimit()
       const limitXtm = microXtmToXtm(limitMicro)
       const amountNum = parseFloat(amount)
 
+      // Stop before the chain switch and signing; the daily-limit banner tells the user why.
       if (limitXtm && amountNum > limitXtm) {
+        console.warn(`[ TAPPLET-BRIDGE ] Daily limit exceeded. Limit: ${limitXtm}, Amount: ${amountNum}`)
         setExceededDailyLimit(true)
-        new Error(`[ TAPPLET-BRIDGE ] Daily limit exceeded. Limit: ${limitXtm}, Amount: ${amountNum}`)
+        return false
       }
 
       if (connectedChainId !== chainId) {

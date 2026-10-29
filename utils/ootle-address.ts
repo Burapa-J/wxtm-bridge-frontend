@@ -11,6 +11,17 @@ export function getOotleAddressPrefix(network: string | undefined): string | und
   return undefined
 }
 
+// The backend's Ootle network ('esmeralda' | 'mainnet') must be Universe's, and the cold account
+// must be an address on it; otherwise deposits could go to the wrong network or a bogus address.
+export function isOotleParamsForNetwork(
+  ootleNetwork: string,
+  coldAccountAddress: string,
+  network: string | undefined,
+): boolean {
+  if (!network || ootleNetwork.toLowerCase() !== network.toLowerCase()) return false
+  return isOotleAddress(coldAccountAddress, network)
+}
+
 export function isOotleAddress(address: string, network: string | undefined): boolean {
   const prefix = getOotleAddressPrefix(network)
   if (!prefix) return false

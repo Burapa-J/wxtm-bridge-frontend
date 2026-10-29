@@ -44,9 +44,6 @@ export interface BridgeEnvs {
   backend_api: string
 }
 
-// Shared by every signer client so request ids never collide on the one postMessage channel.
-let lastSignerCallId = 0
-
 export class TariL1Signer {
   public signerName = 'TariL1Signer'
 
@@ -213,11 +210,14 @@ export class TariL1Signer {
   }
 }
 
+// Every signer client shares this one postMessage channel. Ids are random so another frame can't guess
+// them, and only replies from Universe (the parent window) are accepted.
 export function sendSignerCall(methodName: string, args: unknown[]): Promise<unknown> {
-  const id = ++lastSignerCallId
+  const id = crypto.randomUUID()
   return new Promise<unknown>((resolve, reject) => {
     const event_ref = (resp: MessageEvent<SignerResponse<SignerMethodNames>>) => {
-      if (!resp || !resp.data || resp.data.id !== id || resp.data.type !== 'signer-call') return
+      if (resp.source !== window.parent) return
+      if (!resp.data || resp.data.id !== id || resp.data.type !== 'signer-call') return
       window.removeEventListener('message', event_ref)
       if (resp.data.resultError) {
         reject(resp.data.resultError)

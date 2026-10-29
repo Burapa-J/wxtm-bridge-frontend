@@ -7,6 +7,8 @@ import { getOotleAccount, getOotleBalance, OotleAccount, OotleSignerError } from
 import { OotleWrapTokenService } from '@tari-project/wxtm-bridge-backend-api'
 import { getOotleAssets } from '@/utils/bridge-route'
 import { setOotleConfig, setOotleUnavailable } from './bridge'
+import useAppStore from './app'
+import { isOotleParamsForNetwork } from '@/utils/ootle-address'
 
 interface TariL1WalletStoreState {
   tariAccount?: AccountData
@@ -146,15 +148,25 @@ export const loadOotleBridge = async () => {
 
   let assets
   let coldAccountAddress
+  let ootleNetwork
   try {
     const params = await OotleWrapTokenService.getOotleWrapTokenParams()
     assets = getOotleAssets(params)
     coldAccountAddress = params.coldAccountAddress
+    ootleNetwork = params.ootleNetwork
   } catch (error) {
     console.info('[ TAPPLET-BRIDGE ] Ootle bridge not available: ', error)
     return
   }
   if (!assets.length) return
+
+  const network = useAppStore.getState().network
+  if (!isOotleParamsForNetwork(ootleNetwork, coldAccountAddress, network)) {
+    console.warn(
+      `[ TAPPLET-BRIDGE ] Ootle params are for ${ootleNetwork}, not ${network}, or the cold account is invalid; hiding Ootle`,
+    )
+    return
+  }
 
   try {
     const ootleAccount = await getOotleAccount()

@@ -39,6 +39,21 @@ export function getExplorerUrl(chainId: number): string {
   return KNOWN_EVM_CHAINS[chainId]?.blockExplorers?.default.url ?? ''
 }
 
+// The params explorer URL, accepted only over https on the same host as the chain's known explorer.
+export function getSafeExplorerUrl(chainId: number, paramsUrl: string): string {
+  const knownUrl = getExplorerUrl(chainId)
+  if (!knownUrl) return ''
+  try {
+    const url = new URL(paramsUrl)
+    if (url.protocol === 'https:' && url.host === new URL(knownUrl).host) {
+      return paramsUrl.replace(/\/+$/, '')
+    }
+  } catch {
+    // not a URL
+  }
+  return knownUrl
+}
+
 // wXTM follows the connected wallet's chain when it has a wXTM deployment, as before.
 export function getWxtmAsset(
   connectedChainId: number | undefined,
@@ -121,7 +136,7 @@ export function getOotleAssets(params: GetOotleWrapTokenParamsRespDTO): AssetCon
       highThreshold: config.HIGH_BRIDGE_THRESHOLD,
       tokenAddress: deployments.wTARI,
       bridgeAddress: deployments.wTARIBridge,
-      explorerUrl: chain.explorerUrl,
+      explorerUrl: getSafeExplorerUrl(chain.chainId, chain.explorerUrl),
       wrapFeeBps: params.wrapTokenFeePercentageBps,
       unwrapFeeBps: params.unwrapTokenFeePercentageBps,
     })

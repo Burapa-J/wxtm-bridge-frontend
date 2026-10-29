@@ -11,7 +11,7 @@ import { WrapModal } from '@/components/modals/wrap-modal'
 import { FailedModal } from '../failed-modal'
 import { MainModalProps } from './main-modal.types'
 
-import { setExceededDailyLimit, setUnwrapFailed, setUnwrapSuccess } from '@/store/bridge'
+import { setExceededDailyLimit, setUnwrapFailed, setUnwrapSuccess, useBridgeStore } from '@/store/bridge'
 import { useBridgeTransaction } from '@/hooks/use-bridge-transaction'
 import { useBridgeToEthereum } from '@/hooks/use-bridge-to-ethereum'
 import { useBridgeOotleToEvm } from '@/hooks/use-bridge-ootle-to-evm'
@@ -91,6 +91,9 @@ export const MainModal = ({
     const success = await bridgeToTari(amount, ethAddress, tariWalletAddress)
     if (success) {
       setUnwrapFailed(false)
+    } else if (useBridgeStore.getState().exceededDailyLimit) {
+      // as for wraps: close the modal and let the daily-limit banner explain
+      setIsModalOpen(false)
     } else {
       setUnwrapFailed(true)
     }

@@ -1,6 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { sendSignerCall } from './tari-l1-signer'
-import { getOotleAccount, OotleSignerError, sendOotleStealth, toOotleSignerError } from './tari-ootle-signer'
+import {
+  getOotleAccount,
+  getOotleBalance,
+  OotleSignerError,
+  sendOotleStealth,
+  toOotleSignerError,
+  waitOotleTransaction,
+} from './tari-ootle-signer'
 
 vi.mock('./tari-l1-signer', () => ({ sendSignerCall: vi.fn() }))
 
@@ -47,5 +54,20 @@ describe('Ootle signer calls', () => {
     const error = await getOotleAccount().catch((e) => e)
     expect(error).toBeInstanceOf(OotleSignerError)
     expect(error.code).toBe('busy')
+  })
+
+  it('maps malformed results to failed', async () => {
+    const calls = [
+      () => getOotleAccount(),
+      () => getOotleBalance(),
+      () => sendOotleStealth({ amount: '1', address: 'a', payRef: 'p' }),
+      () => waitOotleTransaction('tx-1', 1),
+    ]
+    for (const call of calls) {
+      mockedSendSignerCall.mockResolvedValue({ address: 1, available: null, transactionId: 2, status: {} })
+      const error = await call().catch((e) => e)
+      expect(error).toBeInstanceOf(OotleSignerError)
+      expect(error.code).toBe('failed')
+    }
   })
 })
