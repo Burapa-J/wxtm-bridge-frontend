@@ -26,18 +26,19 @@ describe('UNIVERSE_ORIGINS', () => {
     vi.resetModules()
   })
 
-  it('allows only the Tauri webview origins in production', async () => {
-    vi.stubEnv('NODE_ENV', 'production')
+  it('allows only the Tauri webview origins by default, even outside production', async () => {
+    vi.stubEnv('NODE_ENV', 'test')
+    vi.stubEnv('NEXT_PUBLIC_ALLOW_UNIVERSE_DEV_ORIGIN', '')
     vi.resetModules()
     const { config } = await import('@/config')
     expect(config.UNIVERSE_ORIGINS).toEqual(['tauri://localhost', 'https://tauri.localhost'])
   })
 
-  it('also allows the Universe dev server outside production', async () => {
-    vi.stubEnv('NODE_ENV', 'test')
+  it('adds the Universe dev server only when opted in, also in production builds', async () => {
+    vi.stubEnv('NODE_ENV', 'production')
+    vi.stubEnv('NEXT_PUBLIC_ALLOW_UNIVERSE_DEV_ORIGIN', 'true')
     vi.resetModules()
     const { config } = await import('@/config')
-    expect(config.UNIVERSE_ORIGINS).toContain('http://localhost:1420')
-    expect(config.UNIVERSE_ORIGINS).not.toContain('http://tauri.localhost')
+    expect(config.UNIVERSE_ORIGINS).toEqual(['tauri://localhost', 'https://tauri.localhost', 'http://localhost:1420'])
   })
 })

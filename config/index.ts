@@ -12,9 +12,10 @@ export const config = {
   MAINNET_EXPLORER_URL: 'https://etherscan.io',
   MICRO_XTM_PER_XTM: 1_000_000,
   // Tari Universe webview origins allowed to frame the tapplet (Tauri v2 with useHttpsScheme:
-  // tauri://localhost on macOS/Linux, https://tauri.localhost on Windows); Universe's dev server outside production.
+  // tauri://localhost on macOS/Linux, https://tauri.localhost on Windows). Universe's dev server
+  // (http://localhost:1420) only in builds made with NEXT_PUBLIC_ALLOW_UNIVERSE_DEV_ORIGIN=true.
   UNIVERSE_ORIGINS:
-    process.env.NODE_ENV === 'production'
-      ? ['tauri://localhost', 'https://tauri.localhost']
-      : ['tauri://localhost', 'https://tauri.localhost', 'http://localhost:1420'],
+    process.env.NEXT_PUBLIC_ALLOW_UNIVERSE_DEV_ORIGIN === 'true'
+      ? ['tauri://localhost', 'https://tauri.localhost', 'http://localhost:1420']
+      : ['tauri://localhost', 'https://tauri.localhost'],
 }
