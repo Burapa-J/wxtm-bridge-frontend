@@ -13,6 +13,7 @@ import { ModalButton } from '../modal-button'
 import { WrapModalProps } from './wrap-modal.types'
 import { useTariAccountStore } from '@/store/account'
 import { useBridgeRoute } from '@/hooks/use-bridge-route'
+import { getUnlistedOotleLabels } from '@/utils/bridge-route'
 
 /** @TODO Refactor and get rid of conditional display here create unwrap-modal and use it for unwrap txs */
 export const WrapModal = ({
@@ -25,13 +26,17 @@ export const WrapModal = ({
   transactionStatus,
   type,
   asset,
+  ootleChainId,
 }: WrapModalProps) => {
   const { i18n, t } = useTranslation('main', { useSuspense: false })
   const ongoingBridgeTx = useTariAccountStore((s) => s.ongoingBridgeTx)
   const { route } = useBridgeRoute()
 
   const bridgeInfo = useBridgeInfo(
-    { asset: asset ?? route.asset, isWrapping: type === 'wrap' },
+    {
+      asset: asset ?? (ootleChainId !== undefined ? getUnlistedOotleLabels(ootleChainId) : route.asset),
+      isWrapping: type === 'wrap',
+    },
     ethereumAddress!,
     tariWalletAddress!,
   )

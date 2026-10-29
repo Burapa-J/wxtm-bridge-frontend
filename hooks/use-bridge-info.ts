@@ -1,5 +1,5 @@
 import { useMemo } from 'react'
-import { BridgeRoute } from '@/utils/bridge-route'
+import { AssetConfig } from '@/utils/bridge-route'
 
 export type BridgeInfo = {
   fromToken: string
@@ -10,7 +10,7 @@ export type BridgeInfo = {
 }
 
 export const useBridgeInfo = (
-  route: BridgeRoute,
+  route: { asset: Pick<AssetConfig, 'tariToken' | 'evmToken'>; isWrapping: boolean },
   ethereumAddress?: string,
   tariWalletAddress?: string,
   handleBridgeToEthereum?: () => void,

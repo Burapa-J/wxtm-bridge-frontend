@@ -76,20 +76,25 @@ export const useBridgeOotleToEvm = () => {
       console.info('[ TAPPLET-BRIDGE ] Ootle wrap already past tokens-sent: ', tx.paymentId)
     }
 
-    // The clientToken is no longer needed; keep the rest so a reload can still show the outcome.
-    await signer.setOngoingBridgeTx({
-      amount: tx.amount,
-      amountToReceive: tx.amountToReceive,
-      destinationAddress: tx.destinationAddress,
-      paymentId: tx.paymentId,
-      network: 'Ootle',
-      chainId: tx.chainId,
-    })
-    await refreshOotleBalance()
-    await getUserBackendBridgeTxs()
+    // The wrap is confirmed; failures below are only logged.
+    try {
+      // The clientToken is no longer needed; keep the rest so a reload can still show the outcome.
+      await signer.setOngoingBridgeTx({
+        amount: tx.amount,
+        amountToReceive: tx.amountToReceive,
+        destinationAddress: tx.destinationAddress,
+        paymentId: tx.paymentId,
+        network: 'Ootle',
+        chainId: tx.chainId,
+      })
+      await refreshOotleBalance()
+      await getUserBackendBridgeTxs()
 
-    if (asset && chain?.id === asset.chainId) {
-      await addTokenToWalletAction(asset)
+      if (asset && chain?.id === asset.chainId) {
+        await addTokenToWalletAction(asset)
+      }
+    } catch (error) {
+      console.error('[ TAPPLET-BRIDGE ] Ootle wrap follow-up failed: ', errorSummary(error))
     }
   }
 

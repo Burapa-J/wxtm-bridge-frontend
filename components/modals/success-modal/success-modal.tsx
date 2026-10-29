@@ -21,6 +21,7 @@ import {
 } from './success-modal.styles'
 import { SuccessModalProps } from './success-modal.types'
 import { useBridgeRoute } from '@/hooks/use-bridge-route'
+import { getUnlistedOotleLabels } from '@/utils/bridge-route'
 
 export const SuccessModal = ({
   closeModalAction,
@@ -30,15 +31,18 @@ export const SuccessModal = ({
   detailedTx,
   type,
   asset: assetProp,
+  ootleChainId,
 }: SuccessModalProps) => {
   const { t } = useTranslation('main', { useSuspense: false })
   const signer = useTariSigner((s) => s.signer)
   const ongoingBridgeTx = useTariAccountStore((s) => s.ongoingBridgeTx)
   const { route } = useBridgeRoute()
-  const asset = assetProp ?? route.asset
+  // undefined for an Ootle tx whose chain the params no longer offer
+  const asset = assetProp ?? (ootleChainId === undefined ? route.asset : undefined)
+  const unlisted = ootleChainId !== undefined && !asset ? getUnlistedOotleLabels(ootleChainId) : undefined
 
   const { fromToken, toToken } = useBridgeInfo(
-    { asset, isWrapping: type === 'wrap' },
+    { asset: asset ?? unlisted!, isWrapping: type === 'wrap' },
     ethereumAddress!,
     tariWalletAddress!,
   )
@@ -46,12 +50,14 @@ export const SuccessModal = ({
   const [copied, setCopied] = useState(false)
 
   const handleCopyAddress = useCallback(async () => {
+    if (!asset) return
     await navigator.clipboard.writeText(asset.tokenAddress)
     setCopied(true)
     setTimeout(() => setCopied(false), 1500)
-  }, [asset.tokenAddress])
+  }, [asset])
 
   const handleAddWxtmToWalletAction = useCallback(() => {
+    if (!asset) return
     console.info('[ TAPPLET-BRIDGE ] Adding WXTM token to the wallet initiated')
     addTokenToWalletAction(asset)
       .then(() => {
@@ -95,43 +101,52 @@ export const SuccessModal = ({
           <div className="font-normal text-xs mt-2 text-center px-3">{t('conversion_complete', { toToken })}</div>
         </div>
         <div style={{ height: 20 }} />
-        <OfficialContractAddressConainer>
-          <OfficialContractAddressWrapper>
-            <span className="label">
-              {asset.kind === 'ootle'
-                ? t('official_token_address', { token: asset.evmToken })
-                : t('official_wxtm_token_address')}
-            </span>
-            <span className="address">{asset.tokenAddress}</span>
-          </OfficialContractAddressWrapper>
-          <CopyIconWrapper onClick={handleCopyAddress}>
-            <CopyIcon size={16} />
-            {copied && (
-              <CopyText
-                initial={{ opacity: 0, scale: 0.8 }}
-                animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.8 }}
-              >
-                {t('copied')}
-              </CopyText>
-            )}
-          </CopyIconWrapper>
-        </OfficialContractAddressConainer>
-        <div style={{ height: 10 }} />
-        <HelperText>
-          <div className="strong">{t('how_to_view_wxtm_in_wallet')}</div>
-          <div>
-            {t('how_to_view_wxtm_step1_prefix')}
-            <span className="strong">{t('token_address')}</span>
-            {t('how_to_view_wxtm_step1_middle')}
-            <span className="strong">{asset.kind === 'ootle' ? asset.chainName : t('ethereum_mainnet')}</span>
-            {t('how_to_view_wxtm_step1_network')}
-            <span className="btn" onClick={handleAddWxtmToWalletAction}>
-              {t('click_here')}
-            </span>
-            {t('how_to_view_wxtm_step2')}
+        {unlisted && (
+          <div className="text-xs text-gray-500 text-center">
+            {unlisted.evmToken} · {unlisted.chainName}
           </div>
-        </HelperText>
+        )}
+        {asset && (
+          <>
+            <OfficialContractAddressConainer>
+              <OfficialContractAddressWrapper>
+                <span className="label">
+                  {asset.kind === 'ootle'
+                    ? t('official_token_address', { token: asset.evmToken })
+                    : t('official_wxtm_token_address')}
+                </span>
+                <span className="address">{asset.tokenAddress}</span>
+              </OfficialContractAddressWrapper>
+              <CopyIconWrapper onClick={handleCopyAddress}>
+                <CopyIcon size={16} />
+                {copied && (
+                  <CopyText
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                  >
+                    {t('copied')}
+                  </CopyText>
+                )}
+              </CopyIconWrapper>
+            </OfficialContractAddressConainer>
+            <div style={{ height: 10 }} />
+            <HelperText>
+              <div className="strong">{t('how_to_view_wxtm_in_wallet')}</div>
+              <div>
+                {t('how_to_view_wxtm_step1_prefix')}
+                <span className="strong">{t('token_address')}</span>
+                {t('how_to_view_wxtm_step1_middle')}
+                <span className="strong">{asset.kind === 'ootle' ? asset.chainName : t('ethereum_mainnet')}</span>
+                {t('how_to_view_wxtm_step1_network')}
+                <span className="btn" onClick={handleAddWxtmToWalletAction}>
+                  {t('click_here')}
+                </span>
+                {t('how_to_view_wxtm_step2')}
+              </div>
+            </HelperText>
+          </>
+        )}
         {/* Section 1 */}
         <div className="flex flex-col my-4">
           <div className="font-medium">

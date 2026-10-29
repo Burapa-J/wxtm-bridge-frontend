@@ -12,7 +12,7 @@ import {
 } from '@tari-project/wxtm-bridge-backend-api'
 
 import { OngoingUserTransaction } from '@/types/tapplet'
-import { ootleWrapReference } from '@/utils/ootle-wrap-reference'
+import { isSameTransaction } from '@/utils/ootle-wrap-reference'
 import { BackendBridgeTransaction, BackendUnwrapTransaction, CombinedBridgeTransaction } from '@/types/transactions'
 import {
   getBackendBridgeTxsFromTU,
@@ -87,8 +87,6 @@ async function getOotleTransactions(
 }
 
 export const useBridgeTransaction = () => {
-  const ongoingBridgeTx = useTariAccountStore((s) => s.ongoingBridgeTx)
-  const lastOngoingPaymentIdFromTU = useTariAccountStore((s) => s.lastOngoingPaymentIdFromTU)
   const tariAccount = useTariAccountStore((s) => s.tariAccount)
   const ootleAccount = useTariAccountStore((s) => s.ootleAccount)
   const getUserWrapTxs = useMutation({
@@ -160,7 +158,25 @@ export const useBridgeTransaction = () => {
           )
         }
       })
+      // Read at call time: callers run this right after changing the ongoing tx.
+      const { ongoingBridgeTx, lastOngoingPaymentIdFromTU } = useTariAccountStore.getState()
+
       if (ongoing) {
+        // An Ootle wrap row is keyed by its reference; keep the local record (real paymentId, failed state).
+        if (
+          ongoing.type === 'wrap' &&
+          ongoing.ootleChainId !== undefined &&
+          ongoingBridgeTx?.type === 'wrap' &&
+          isSameTransaction(ongoing, ongoingBridgeTx.paymentId)
+        ) {
+          if (
+            ongoingBridgeTx.status !== UserTransactionDTO.status.TIMEOUT &&
+            ongoingBridgeTx.status !== ongoing.status
+          ) {
+            setLastOngoingBridgeTx({ ...ongoingBridgeTx, status: ongoing.status } as OngoingUserTransaction)
+          }
+          return useTariAccountStore.getState().ongoingBridgeTx ?? null
+        }
         if (
           (ongoing.paymentId !== ongoingBridgeTx?.paymentId || ongoing.status !== ongoingBridgeTx?.status) &&
           (!ongoingBridgeTx || new Date(ongoing.createdAt).getTime() > new Date(ongoingBridgeTx?.createdAt).getTime())
@@ -173,18 +189,9 @@ export const useBridgeTransaction = () => {
 
       // If no pending tx found, but previously had one, check if it succeeded/failed
       // check also with the paymentId from the TU to display modal after the bridge relaunch
-      const validPaymentIds = new Set([ongoingBridgeTx?.paymentId, lastOngoingPaymentIdFromTU])
-      // Ootle wrap rows are keyed by the reference derived from the paymentId.
-      const validOotleReferences = new Set<string>()
-      for (const paymentId of validPaymentIds) {
-        if (paymentId) validOotleReferences.add(ootleWrapReference(paymentId))
-      }
       const ongoingCompleted = combinedTransactions.find((tx) => {
-        const paymentId = tx.paymentId
         const hasValidPaymentId =
-          tx.type === 'wrap' && tx.ootleChainId !== undefined
-            ? validOotleReferences.has(paymentId)
-            : validPaymentIds.has(paymentId)
+          isSameTransaction(tx, ongoingBridgeTx?.paymentId) || isSameTransaction(tx, lastOngoingPaymentIdFromTU)
 
         if (tx.type === 'wrap') {
           return (

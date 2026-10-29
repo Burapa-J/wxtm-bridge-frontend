@@ -40,6 +40,7 @@ const TransactionDetailsModal = memo(function TransactionDetailsModal({
             transactionStatus={transaction}
             type={transaction.type}
             asset={asset}
+            ootleChainId={transaction.ootleChainId}
           />
         )
 
@@ -53,6 +54,7 @@ const TransactionDetailsModal = memo(function TransactionDetailsModal({
             detailedTx={transaction}
             type={transaction.type}
             asset={asset}
+            ootleChainId={transaction.ootleChainId}
           />
         )
 

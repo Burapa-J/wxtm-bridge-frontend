@@ -119,6 +119,7 @@ export const MainModal = ({
           ethereumAddress={ethereumAddress}
           type={type}
           asset={ongoingAsset}
+          ootleChainId={ongoingBridgeTx?.ootleChainId}
         />
       )
 
@@ -146,6 +147,7 @@ export const MainModal = ({
           feesData={feesData}
           type={type}
           asset={ongoingAsset}
+          ootleChainId={ongoingBridgeTx?.ootleChainId}
         />
       )
     if (step === 3) return <InfoModal />

@@ -5,7 +5,7 @@ export const useWalletUtils = () => {
   const { data: walletClient } = useWalletClient()
   const addTokenToWalletAction = async (asset: AssetConfig) => {
     try {
-      return walletClient?.request({
+      return await walletClient?.request({
         method: 'wallet_watchAsset',
         params: {
           type: 'ERC20',

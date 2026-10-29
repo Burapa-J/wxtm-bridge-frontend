@@ -233,6 +233,11 @@ export function getTransactionAsset(ootleChainId: number | undefined, assets: As
   return assets.find((a) => a.kind === 'ootle' && a.chainId === ootleChainId)
 }
 
+// Labels for an Ootle transaction on a chain the params no longer offer.
+export function getUnlistedOotleLabels(chainId: number): { tariToken: string; evmToken: string; chainName: string } {
+  return { tariToken: 'TARI', evmToken: 'wTARI', chainName: KNOWN_EVM_CHAINS[chainId]?.name ?? String(chainId) }
+}
+
 export function amountAfterFee(value: bigint, feeBps: number): bigint {
   return value - (value * BigInt(feeBps)) / BigInt(10000)
 }
