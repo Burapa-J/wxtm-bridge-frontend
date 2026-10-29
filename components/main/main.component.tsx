@@ -22,6 +22,7 @@ export const MainComponent = ({ remainingDailyLimit }: MainComponentProps) => {
   const bridgeTxs = useTariAccountStore((s) => s.combinedBridgeTxs)
   const ootleUnavailable = useBridgeStore((s) => s.ootleUnavailable)
   const ootleAssets = useBridgeStore((s) => s.ootleAssets)
+  const ootleWrapInFlight = useBridgeStore((s) => s.ootleWrapInFlight)
   const { route } = useBridgeRoute()
 
   const notices: string[] = []
@@ -31,6 +32,7 @@ export const MainComponent = ({ remainingDailyLimit }: MainComponentProps) => {
       notices.push(t('chain_retiring', { token: asset.evmToken, chain: asset.chainName }))
   }
   if (route.asset.kind === 'ootle') notices.push(t('ootle_no_peg_out'))
+  if (ootleWrapInFlight) notices.push(t('ootle_wrap_in_flight'))
 
   const { isOffline } = useBridgeStatus()
 

@@ -17,13 +17,15 @@ import { useTranslation } from 'react-i18next'
 import { MainComponentProps } from '../main'
 import { setIsModalOpen, setModalStep } from '@/store/modal'
 import { useFormContext } from 'react-hook-form'
-import { setBridgeError, setNetworks } from '@/store/bridge'
+import { setBridgeError, setNetworks, useBridgeStore } from '@/store/bridge'
 import { useTariAccountStore } from '@/store/account'
 
 export const BridgeForm = ({ remainingDailyLimit }: MainComponentProps) => {
   const { t } = useTranslation('main', { useSuspense: false })
   const { assets, networks, from: fromNetwork, to: toNetwork, route } = useBridgeRoute()
   const { asset, isWrapping } = route
+  // No new bridge while an Ootle deposit awaits confirmation; it would take over the ongoing tx.
+  const ootleWrapInFlight = useBridgeStore((s) => s.ootleWrapInFlight)
   const {
     setValue,
     formState: { isValid },
@@ -197,7 +199,7 @@ export const BridgeForm = ({ remainingDailyLimit }: MainComponentProps) => {
                     {t('connect_wallet')}
                   </MainButton>
                 ) : (
-                  <MainButton onClick={handleContinueClick} disabled={!isValid || isDisabled}>
+                  <MainButton onClick={handleContinueClick} disabled={!isValid || isDisabled || ootleWrapInFlight}>
                     <div className="flex">
                       {t('continue')}
                       <FaArrowRight className="ml-2" />

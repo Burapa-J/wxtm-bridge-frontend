@@ -135,9 +135,14 @@ function isEvmFor(option: NetworkOption, asset: AssetConfig): boolean {
 }
 
 // The same selector entry; the wXTM chain follows the wallet, so wXTM entries match on asset alone.
-function isSameOption(a: NetworkOption, b: NetworkOption): boolean {
+export function isSameOption(a: NetworkOption, b: NetworkOption): boolean {
   if (typeof a !== 'object' || typeof b !== 'object') return a === b
   return a.asset === b.asset && (a.asset === 'wxtm' || a.chainId === b.chainId)
+}
+
+// A stable React key for a selector entry.
+export function networkOptionKey(option: NetworkOption): string {
+  return typeof option === 'object' ? `${option.asset}:${option.chainId}` : option
 }
 
 // Valid routes: Tari <-> the wXTM chain, and Ootle <-> each wTARI chain (wrapping only to active chains).

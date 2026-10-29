@@ -9,6 +9,8 @@ import {
   getOotleAssets,
   getTransactionAsset,
   getWxtmAsset,
+  isSameOption,
+  networkOptionKey,
   pickNetwork,
 } from './bridge-route'
 
@@ -231,5 +233,30 @@ describe('amountAfterFee', () => {
     expect(amountAfterFee(oneThousand, 0)).toBe(oneThousand)
     expect(amountAfterFee(oneThousand, 10000)).toBe(BigInt(0))
     expect(amountAfterFee(BigInt(10001), 1)).toBe(BigInt(10000))
+  })
+})
+
+describe('isSameOption and networkOptionKey', () => {
+  const wxtmOnSepolia = { kind: 'evm' as const, chainId: sepolia.id, asset: 'wxtm' as const }
+  const wxtmOnMainnet = { kind: 'evm' as const, chainId: mainnet.id, asset: 'wxtm' as const }
+  const wtariOnSepolia = { kind: 'evm' as const, chainId: sepolia.id, asset: 'ootle' as const }
+  const wtariOnBase = { kind: 'evm' as const, chainId: base.id, asset: 'ootle' as const }
+
+  it('tells wXTM and wTARI apart on the same chain', () => {
+    expect(isSameOption(wxtmOnSepolia, wtariOnSepolia)).toBe(false)
+    expect(networkOptionKey(wxtmOnSepolia)).not.toBe(networkOptionKey(wtariOnSepolia))
+  })
+
+  it('matches wTARI by chain and wXTM on asset alone', () => {
+    expect(isSameOption(wtariOnSepolia, wtariOnBase)).toBe(false)
+    expect(isSameOption(wtariOnSepolia, { ...wtariOnSepolia })).toBe(true)
+    expect(isSameOption(wxtmOnSepolia, wxtmOnMainnet)).toBe(true)
+  })
+
+  it('matches the Tari side by name', () => {
+    expect(isSameOption('Tari', 'Tari')).toBe(true)
+    expect(isSameOption('Tari', 'Ootle')).toBe(false)
+    expect(isSameOption('Ootle', wtariOnSepolia)).toBe(false)
+    expect(networkOptionKey('Ootle')).toBe('Ootle')
   })
 })

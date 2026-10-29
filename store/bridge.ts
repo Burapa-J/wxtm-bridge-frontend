@@ -18,6 +18,8 @@ interface BridgeConfigStoreState {
   ootleAssets: AssetConfig[]
   ootleColdAccountAddress: string
   ootleUnavailable: boolean
+  // An Ootle wrap is between its deposit and tokens-sent; no new bridge may start meanwhile.
+  ootleWrapInFlight: boolean
   // Shown in the failed modal instead of the generic failure text.
   bridgeError: string
 }
@@ -39,6 +41,7 @@ const initialState: BridgeConfigStoreState = {
   ootleAssets: [],
   ootleColdAccountAddress: '',
   ootleUnavailable: false,
+  ootleWrapInFlight: false,
   bridgeError: '',
 }
 
@@ -68,6 +71,7 @@ export const setOotleConfig = (ootleAssets: AssetConfig[], ootleColdAccountAddre
   useBridgeStore.setState({ ootleAssets, ootleColdAccountAddress })
 
 export const setOotleUnavailable = (ootleUnavailable: boolean) => useBridgeStore.setState({ ootleUnavailable })
+export const setOotleWrapInFlight = (ootleWrapInFlight: boolean) => useBridgeStore.setState({ ootleWrapInFlight })
 export const setBridgeError = (bridgeError: string) => useBridgeStore.setState({ bridgeError })
 
 export const setUnwrapFailed = (unwrapFailed: boolean) => useBridgeStore.setState({ unwrapFailed })

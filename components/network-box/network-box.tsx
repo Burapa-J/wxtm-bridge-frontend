@@ -3,10 +3,11 @@ import Image from 'next/image'
 import { IoIosArrowUp, IoIosArrowDown } from 'react-icons/io'
 
 import { NetworkBoxProps } from './network-box.types'
+import { isSameOption, networkOptionKey } from '@/utils/bridge-route'
 
 export const NetworkBox = ({ type, selected, isOpen, networks, onToggle, onSelect }: NetworkBoxProps) => {
   const getFilteredNetworks = () => {
-    return networks.filter((network) => network.name !== selected.name)
+    return networks.filter((network) => !isSameOption(network.option, selected.option))
   }
 
   const tokenSymbol = selected.token
@@ -33,14 +34,16 @@ export const NetworkBox = ({ type, selected, isOpen, networks, onToggle, onSelec
         <div className="absolute bottom-full left-0 mt-2 mb-1.5 w-full z-50 bg-white rounded-xl shadow-lg p-3 space-y-2">
           {filteredNetworks.map((network) => (
             <div
-              key={network.name}
+              key={networkOptionKey(network.option)}
               className="flex items-center gap-2 p-2 rounded-md hover:bg-gray-100 cursor-pointer"
               onClick={() => onSelect(network)}
             >
               <div className="w-6 h-6 relative">
                 <Image src={network.icon} fill alt={network.name} sizes="24px" className="object-cover rounded-full" />
               </div>
-              <span className="text-sm font-medium text-gray-800">{network.name}</span>
+              <span className="text-sm font-medium text-gray-800">
+                {typeof network.option === 'object' ? `${network.token} · ${network.name}` : network.name}
+              </span>
             </div>
           ))}
         </div>

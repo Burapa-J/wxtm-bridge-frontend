@@ -5,11 +5,12 @@ import { isAddress } from 'viem'
 import { BridgeTxDetails } from '@/clients/tari-l1-signer'
 import { sendOotleStealth, waitOotleTransaction } from '@/clients/tari-ootle-signer'
 import { refreshOotleBalance, setLastOngoingBridgeTx, useTariAccountStore } from '@/store/account'
-import { setBridgeError, useBridgeStore } from '@/store/bridge'
+import { setBridgeError, setOotleWrapInFlight, useBridgeStore } from '@/store/bridge'
 import useTariSigner from '@/store/signer'
 import { AssetConfig } from '@/utils/bridge-route'
 import { parseWxtmTokenAmount } from '@/utils/parse-wxtm-token-amount'
 import { errorSummary } from '@/utils/error-summary'
+import { isSameTransaction } from '@/utils/ootle-wrap-reference'
 import { useBridgeTransaction } from './use-bridge-transaction'
 import { useWalletUtils } from './use-wallet'
 
@@ -19,6 +20,12 @@ const WAIT_ATTEMPTS = 3
 
 // The backend's answer once the wrap has left CREATED, e.g. after it already saw the deposit.
 const TRANSACTION_STATUS_INCORRECT = 'Transaction status is incorrect'
+
+// False once another transaction has become the ongoing one, so a late result can't overwrite it.
+function isStillOngoing(tx: BridgeTxDetails): boolean {
+  const ongoing = useTariAccountStore.getState().ongoingBridgeTx
+  return !ongoing || isSameTransaction(ongoing, tx.paymentId)
+}
 
 // Shows the failure modal with the paymentId.
 function showWrapFailed(tx: BridgeTxDetails) {
@@ -46,6 +53,17 @@ export const useBridgeOotleToEvm = () => {
   const finishOotleWrap = async (tx: BridgeTxDetails, asset?: AssetConfig) => {
     if (!signer || !tx.clientToken || !tx.ootleTransactionId) return
 
+    setOotleWrapInFlight(true)
+    try {
+      await waitAndConfirm(tx, asset)
+    } finally {
+      setOotleWrapInFlight(false)
+    }
+  }
+
+  const waitAndConfirm = async (tx: BridgeTxDetails, asset?: AssetConfig) => {
+    if (!signer || !tx.clientToken || !tx.ootleTransactionId) return
+
     let status = 'Pending'
     for (let i = 0; i < WAIT_ATTEMPTS && status === 'Pending'; i++) {
       const result = await waitOotleTransaction(tx.ootleTransactionId, WAIT_TIMEOUT_SECS)
@@ -58,7 +76,7 @@ export const useBridgeOotleToEvm = () => {
     }
     if (status !== 'Accepted') {
       console.error(`[ TAPPLET-BRIDGE ] Ootle deposit ${tx.paymentId} ended as ${status}`)
-      showWrapFailed(tx)
+      if (isStillOngoing(tx)) showWrapFailed(tx)
       return
     }
 
@@ -77,14 +95,16 @@ export const useBridgeOotleToEvm = () => {
     // The wrap is confirmed; failures below are only logged.
     try {
       // The clientToken is no longer needed; keep the rest so a reload can still show the outcome.
-      await signer.setOngoingBridgeTx({
-        amount: tx.amount,
-        amountToReceive: tx.amountToReceive,
-        destinationAddress: tx.destinationAddress,
-        paymentId: tx.paymentId,
-        network: 'Ootle',
-        chainId: tx.chainId,
-      })
+      if (isStillOngoing(tx)) {
+        await signer.setOngoingBridgeTx({
+          amount: tx.amount,
+          amountToReceive: tx.amountToReceive,
+          destinationAddress: tx.destinationAddress,
+          paymentId: tx.paymentId,
+          network: 'Ootle',
+          chainId: tx.chainId,
+        })
+      }
       await refreshOotleBalance()
       await getUserBackendBridgeTxs()
 
@@ -183,10 +203,12 @@ export const useBridgeOotleToEvm = () => {
     } catch (error) {
       // The deposit was sent; keep the stored tx so the next load can retry tokens-sent.
       console.error('[ TAPPLET-BRIDGE ] Could not confirm the Ootle deposit: ', errorSummary(error))
-      setBridgeError(t('ootle_wrap_unconfirmed'))
-      // reopen the modal if the user closed it during the wait
       const ongoing = useTariAccountStore.getState().ongoingBridgeTx
-      if (ongoing) setLastOngoingBridgeTx({ ...ongoing, showModal: true })
+      if (isStillOngoing(tx)) {
+        setBridgeError(t('ootle_wrap_unconfirmed'))
+        // reopen the modal if the user closed it during the wait
+        if (ongoing) setLastOngoingBridgeTx({ ...ongoing, showModal: true })
+      }
     }
   }
 
