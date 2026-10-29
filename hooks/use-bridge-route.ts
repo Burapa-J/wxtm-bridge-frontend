@@ -13,7 +13,8 @@ export const useBridgeRoute = () => {
   const fromNetwork = useBridgeStore((s) => s.fromNetwork)
   const toNetwork = useBridgeStore((s) => s.toNetwork)
 
-  const assets = [getWxtmAsset(chain?.id, isMainNet, wrapFeeBps, unwrapFeeBps), ...ootleAssets]
+  const wtariChainIds = ootleAssets.map((a) => a.chainId)
+  const assets = [getWxtmAsset(chain?.id, isMainNet, wrapFeeBps, unwrapFeeBps, wtariChainIds), ...ootleAssets]
   const networks = getNetworkChoices(assets)
   const { from, to, route } = resolveSelection(fromNetwork.name, toNetwork.name, networks, assets)
 

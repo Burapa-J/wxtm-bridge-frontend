@@ -29,14 +29,19 @@ export const SuccessModal = ({
   ethereumAddress,
   detailedTx,
   type,
+  asset: assetProp,
 }: SuccessModalProps) => {
   const { t } = useTranslation('main', { useSuspense: false })
   const signer = useTariSigner((s) => s.signer)
   const ongoingBridgeTx = useTariAccountStore((s) => s.ongoingBridgeTx)
   const { route } = useBridgeRoute()
-  const { asset } = route
+  const asset = assetProp ?? route.asset
 
-  const { fromToken, toToken } = useBridgeInfo(route, ethereumAddress!, tariWalletAddress!)
+  const { fromToken, toToken } = useBridgeInfo(
+    { asset, isWrapping: type === 'wrap' },
+    ethereumAddress!,
+    tariWalletAddress!,
+  )
   const { addTokenToWalletAction } = useWalletUtils()
   const [copied, setCopied] = useState(false)
 

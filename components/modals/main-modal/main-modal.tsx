@@ -17,7 +17,10 @@ import { useBridgeToEthereum } from '@/hooks/use-bridge-to-ethereum'
 import { useBridgeOotleToEvm } from '@/hooks/use-bridge-ootle-to-evm'
 import { useBridgeToTari } from '@/hooks/use-bridge-to-tari'
 import { useBridgeRoute } from '@/hooks/use-bridge-route'
+import { useTariAccountStore } from '@/store/account'
+import { getTransactionAsset } from '@/utils/bridge-route'
 import { setIsModalOpen, setModalStep } from '@/store/modal'
+import { errorSummary } from '@/utils/error-summary'
 
 const DAILY_LIMIT_ERROR = 'Daily wrap limit exceeded'
 const DAILY_LIMIT_ERROR_TYPE = 'Forbidden'
@@ -35,8 +38,10 @@ export const MainModal = ({
 }: MainModalProps) => {
   const modalRef = useRef<HTMLDivElement>(null)
   const { address: ethAddress, isConnected } = useConnection()
-  const { route } = useBridgeRoute()
+  const { route, assets } = useBridgeRoute()
   const { asset } = route
+  const ongoingBridgeTx = useTariAccountStore((s) => s.ongoingBridgeTx)
+  const ongoingAsset = ongoingBridgeTx ? getTransactionAsset(ongoingBridgeTx.ootleChainId, assets) : undefined
 
   const { getUserBackendBridgeTxs } = useBridgeTransaction()
   const { bridgeToEthereum } = useBridgeToEthereum()
@@ -68,9 +73,11 @@ export const MainModal = ({
         const isLimitError =
           error?.message?.includes(DAILY_LIMIT_ERROR) || error?.message?.includes(DAILY_LIMIT_ERROR_TYPE)
         if (isLimitError) {
-          console.warn('[ TAPPLET-BRIDGE ] Bridge operation failed:', e)
+          console.warn('[ TAPPLET-BRIDGE ] Bridge operation failed:', errorSummary(e))
           setExceededDailyLimit(true)
           setIsModalOpen(false)
+        } else {
+          console.error('[ TAPPLET-BRIDGE ] Bridge operation failed:', errorSummary(e))
         }
       })
   }, [amount, asset, bridgeOotleToEvm, bridgeToEthereum, ethAddress, feesData.amountAfterFee, getUserBackendBridgeTxs])
@@ -111,6 +118,7 @@ export const MainModal = ({
           tariWalletAddress={tariWalletAddress}
           ethereumAddress={ethereumAddress}
           type={type}
+          asset={ongoingAsset}
         />
       )
 
@@ -137,6 +145,7 @@ export const MainModal = ({
           ethereumAddress={ethereumAddress}
           feesData={feesData}
           type={type}
+          asset={ongoingAsset}
         />
       )
     if (step === 3) return <InfoModal />

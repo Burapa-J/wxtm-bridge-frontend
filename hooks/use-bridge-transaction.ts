@@ -12,6 +12,7 @@ import {
 } from '@tari-project/wxtm-bridge-backend-api'
 
 import { OngoingUserTransaction } from '@/types/tapplet'
+import { ootleWrapReference } from '@/utils/ootle-wrap-reference'
 import { BackendBridgeTransaction, BackendUnwrapTransaction, CombinedBridgeTransaction } from '@/types/transactions'
 import {
   getBackendBridgeTxsFromTU,
@@ -173,9 +174,17 @@ export const useBridgeTransaction = () => {
       // If no pending tx found, but previously had one, check if it succeeded/failed
       // check also with the paymentId from the TU to display modal after the bridge relaunch
       const validPaymentIds = new Set([ongoingBridgeTx?.paymentId, lastOngoingPaymentIdFromTU])
+      // Ootle wrap rows are keyed by the reference derived from the paymentId.
+      const validOotleReferences = new Set<string>()
+      for (const paymentId of validPaymentIds) {
+        if (paymentId) validOotleReferences.add(ootleWrapReference(paymentId))
+      }
       const ongoingCompleted = combinedTransactions.find((tx) => {
         const paymentId = tx.paymentId
-        const hasValidPaymentId = validPaymentIds.has(paymentId)
+        const hasValidPaymentId =
+          tx.type === 'wrap' && tx.ootleChainId !== undefined
+            ? validOotleReferences.has(paymentId)
+            : validPaymentIds.has(paymentId)
 
         if (tx.type === 'wrap') {
           return (

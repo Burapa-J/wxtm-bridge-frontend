@@ -24,12 +24,17 @@ export const WrapModal = ({
   destinationAddress: destAddressProp,
   transactionStatus,
   type,
+  asset,
 }: WrapModalProps) => {
   const { i18n, t } = useTranslation('main', { useSuspense: false })
   const ongoingBridgeTx = useTariAccountStore((s) => s.ongoingBridgeTx)
   const { route } = useBridgeRoute()
 
-  const bridgeInfo = useBridgeInfo(route, ethereumAddress!, tariWalletAddress!)
+  const bridgeInfo = useBridgeInfo(
+    { asset: asset ?? route.asset, isWrapping: type === 'wrap' },
+    ethereumAddress!,
+    tariWalletAddress!,
+  )
   const amountAfterFeePending = amountAfterFeeProp
     ? parseFloat(utils.formatUnits(amountAfterFeeProp, type === 'wrap' ? 6 : 18)).toPrecision()
     : ongoingBridgeTx?.amountAfterFee

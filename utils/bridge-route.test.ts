@@ -1,11 +1,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { GetOotleWrapTokenParamsRespDTO, OotlePublicEvmChainDTO } from '@tari-project/wxtm-bridge-backend-api'
-import { base, baseSepolia, mainnet } from 'viem/chains'
+import { base, baseSepolia, mainnet, sepolia } from 'viem/chains'
 import {
   amountAfterFee,
   deriveRoute,
   getNetworkChoices,
   getOotleAssets,
+  getTransactionAsset,
   getWxtmAsset,
   pickNetwork,
 } from './bridge-route'
@@ -122,7 +123,7 @@ describe('getOotleAssets', () => {
 
 describe('deriveRoute', () => {
   vi.spyOn(console, 'warn').mockImplementation(() => {})
-  const wxtm = getWxtmAsset(undefined, true, 50, 50)
+  const wxtm = getWxtmAsset(undefined, true, 50, 50, [])
   const assets = [wxtm, ...getOotleAssets(fixture)]
   const activeChain = { kind: 'evm' as const, chainId: baseSepolia.id }
   const retiringChain = { kind: 'evm' as const, chainId: base.id }
@@ -166,6 +167,41 @@ describe('deriveRoute', () => {
       from: byName('Base'),
       to: byName('Ootle'),
     })
+  })
+})
+
+describe('getWxtmAsset', () => {
+  it('follows the wallet onto a wXTM chain', () => {
+    expect(getWxtmAsset(baseSepolia.id, false, 50, 50, []).chainId).toBe(baseSepolia.id)
+  })
+
+  it('does not follow the wallet onto a wTARI chain, so routes never share a chainId', () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const ootleAssets = getOotleAssets(fixture)
+    const wxtm = getWxtmAsset(
+      baseSepolia.id,
+      false,
+      50,
+      50,
+      ootleAssets.map((a) => a.chainId),
+    )
+    const assets = [wxtm, ...ootleAssets]
+
+    expect(wxtm.chainId).toBe(sepolia.id)
+    expect(deriveRoute('Tari', { kind: 'evm', chainId: baseSepolia.id }, assets)).toBeUndefined()
+    expect(deriveRoute('Ootle', { kind: 'evm', chainId: wxtm.chainId }, assets)).toBeUndefined()
+    expect(new Set(getNetworkChoices(assets).map((n) => JSON.stringify(n.option))).size).toBe(5)
+  })
+})
+
+describe('getTransactionAsset', () => {
+  it('picks the Ootle chain asset, else wXTM', () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    const assets = [getWxtmAsset(undefined, true, 50, 50, []), ...getOotleAssets(fixture)]
+
+    expect(getTransactionAsset(undefined, assets)?.kind).toBe('wxtm')
+    expect(getTransactionAsset(base.id, assets)?.chainId).toBe(base.id)
+    expect(getTransactionAsset(UNKNOWN_CHAIN_ID, assets)).toBeUndefined()
   })
 })
 

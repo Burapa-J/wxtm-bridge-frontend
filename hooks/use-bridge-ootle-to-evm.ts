@@ -10,12 +10,16 @@ import { setBridgeError, useBridgeStore } from '@/store/bridge'
 import useTariSigner from '@/store/signer'
 import { AssetConfig } from '@/utils/bridge-route'
 import { parseWxtmTokenAmount } from '@/utils/parse-wxtm-token-amount'
+import { errorSummary } from '@/utils/error-summary'
 import { useBridgeTransaction } from './use-bridge-transaction'
 import { useWalletUtils } from './use-wallet'
 
 // Universe caps one wait at 600s; a deposit still pending after this stays stored and is resumed on the next load.
 const WAIT_TIMEOUT_SECS = 600
 const WAIT_ATTEMPTS = 3
+
+// The backend's answer once the wrap has left CREATED, e.g. after it already saw the deposit.
+const TRANSACTION_STATUS_INCORRECT = 'Transaction status is incorrect'
 
 // Shows the failure modal with the paymentId.
 function showWrapFailed(tx: BridgeTxDetails) {
@@ -28,6 +32,7 @@ function showWrapFailed(tx: BridgeTxDetails) {
     paymentId: tx.paymentId,
     showModal: true,
     type: 'wrap',
+    ootleChainId: tx.chainId,
   })
 }
 
@@ -59,10 +64,17 @@ export const useBridgeOotleToEvm = () => {
       return
     }
 
-    await OotleWrapTokenService.updateOotleToTokensSent(tx.paymentId, {
-      clientToken: tx.clientToken,
-      ootleTransactionId: tx.ootleTransactionId,
-    })
+    try {
+      await OotleWrapTokenService.updateOotleToTokensSent(tx.paymentId, {
+        clientToken: tx.clientToken,
+        ootleTransactionId: tx.ootleTransactionId,
+      })
+    } catch (error) {
+      const alreadySent =
+        error instanceof ApiError && error.status === 400 && error.body?.message === TRANSACTION_STATUS_INCORRECT
+      if (!alreadySent) throw error
+      console.info('[ TAPPLET-BRIDGE ] Ootle wrap already past tokens-sent: ', tx.paymentId)
+    }
 
     // The clientToken is no longer needed; keep the rest so a reload can still show the outcome.
     await signer.setOngoingBridgeTx({
@@ -111,11 +123,15 @@ export const useBridgeOotleToEvm = () => {
         tokenAmount,
       })
     } catch (error) {
+      // 403 is the daily limit, which the caller shows.
+      if (error instanceof ApiError && error.status === 403) throw error
+      console.error('[ TAPPLET-BRIDGE ] Ootle wrap creation failed: ', errorSummary(error))
       if (error instanceof ApiError && error.status === 429) {
         setBridgeError(t('ootle_too_many_open_wraps'))
-        return
+      } else {
+        setBridgeError(t('ootle_wrap_error'))
       }
-      throw error
+      return
     }
     const { paymentId, clientToken } = created
 
@@ -129,6 +145,7 @@ export const useBridgeOotleToEvm = () => {
       paymentId,
       showModal: true,
       type: 'wrap',
+      ootleChainId: asset.chainId,
     })
     console.debug('[ TAPPLET-BRIDGE ] created Ootle wrap with id: ', paymentId)
 
@@ -150,16 +167,21 @@ export const useBridgeOotleToEvm = () => {
       })
       tx.ootleTransactionId = transactionId
     } catch (error) {
-      console.error('[ TAPPLET-BRIDGE ] Ootle deposit failed: ', error)
+      console.error('[ TAPPLET-BRIDGE ] Ootle deposit failed: ', errorSummary(error))
       showWrapFailed(tx)
       return
     }
 
     // stored in TU so a reload between the deposit and tokens-sent can still finish
-    await signer.setOngoingBridgeTx(tx)
-    await getUserBackendBridgeTxs()
-
-    await finishOotleWrap(tx, asset)
+    try {
+      await signer.setOngoingBridgeTx(tx)
+      await getUserBackendBridgeTxs()
+      await finishOotleWrap(tx, asset)
+    } catch (error) {
+      // The deposit was sent; keep the stored tx so the next load can retry tokens-sent.
+      console.error('[ TAPPLET-BRIDGE ] Could not confirm the Ootle deposit: ', errorSummary(error))
+      setBridgeError(t('ootle_wrap_unconfirmed'))
+    }
   }
 
   return {

@@ -169,6 +169,7 @@ export const useBridgeToTari = (ethAddress: `0x${string}`, asset: AssetConfig) =
           paymentId: '',
           showModal: true,
           type: 'unwrap',
+          ootleChainId: asset.kind === 'ootle' ? chainId : undefined,
         })
 
         return true

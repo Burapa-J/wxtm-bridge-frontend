@@ -21,6 +21,7 @@ import { useFetchDailyLimit } from '@/hooks/use-fetch-daily-limit'
 import { setIsModalOpen, setModalStep, useModalStore } from '@/store/modal'
 import { useBridgeRoute } from '@/hooks/use-bridge-route'
 import { useBridgeOotleToEvm } from '@/hooks/use-bridge-ootle-to-evm'
+import { errorSummary } from '@/utils/error-summary'
 
 const REFETCH_LIMIT_INTERVAL = 30 * 1000 // 30 sec
 
@@ -135,7 +136,7 @@ export default function Home() {
     if (!ootleWrapToResume || !ootleAccount) return
     clearOotleWrapToResume()
     finishOotleWrap(ootleWrapToResume).catch((error) =>
-      console.error('[ TAPPLET-BRIDGE ] Failed to resume the Ootle wrap:', error),
+      console.error('[ TAPPLET-BRIDGE ] Failed to resume the Ootle wrap:', errorSummary(error)),
     )
   }, [finishOotleWrap, ootleAccount, ootleWrapToResume])
 

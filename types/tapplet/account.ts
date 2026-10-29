@@ -25,4 +25,6 @@ export type OngoingUserTransaction = (
 ) & {
   showModal?: boolean
   type: 'wrap' | 'unwrap'
+  // set only for Ootle (TARI <-> wTARI) transactions
+  ootleChainId?: number
 }

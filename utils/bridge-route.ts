@@ -39,15 +39,21 @@ export function getExplorerUrl(chainId: number): string {
   return KNOWN_EVM_CHAINS[chainId]?.blockExplorers?.default.url ?? ''
 }
 
-// wXTM follows the connected wallet's chain when it has a wXTM deployment, as before.
+// wXTM follows the connected wallet's chain when it has a wXTM deployment, as before, but never onto
+// a wTARI chain from the Ootle params, so the two assets never share a chainId.
 export function getWxtmAsset(
   connectedChainId: number | undefined,
   isMainNet: boolean,
   wrapFeeBps: number,
   unwrapFeeBps: number,
+  wtariChainIds: number[],
 ): AssetConfig {
   let chainId: number = isMainNet ? mainnet.id : sepolia.id
-  if (connectedChainId !== undefined && getDeployments(connectedChainId).wXTM) {
+  if (
+    connectedChainId !== undefined &&
+    getDeployments(connectedChainId).wXTM &&
+    !wtariChainIds.includes(connectedChainId)
+  ) {
     chainId = connectedChainId
   }
   const deployments = getDeployments(chainId)
@@ -218,6 +224,13 @@ export function resolveSelection(
     to: networks.find((n) => n.name === asset.chainName) as Network,
     route: { asset, isWrapping: true },
   }
+}
+
+// The asset a transaction belongs to: its Ootle chain's asset, otherwise wXTM (always assets[0]).
+// undefined for an Ootle chain the params no longer offer.
+export function getTransactionAsset(ootleChainId: number | undefined, assets: AssetConfig[]): AssetConfig | undefined {
+  if (ootleChainId === undefined) return assets[0]
+  return assets.find((a) => a.kind === 'ootle' && a.chainId === ootleChainId)
 }
 
 export function amountAfterFee(value: bigint, feeBps: number): bigint {

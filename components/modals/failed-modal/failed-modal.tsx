@@ -19,8 +19,9 @@ export const FailedModal = ({ closeModalAction, paymentId: paymentIdProp }: Fail
   const handleOnClick = useCallback(async () => {
     closeModalAction()
     removeOngoingTransaction()
-    await signer?.removeOngoingBridgeTx()
-  }, [closeModalAction, signer])
+    // With a bridgeError, any tx stored in TU is an Ootle deposit still to confirm on the next load.
+    if (!bridgeError) await signer?.removeOngoingBridgeTx()
+  }, [bridgeError, closeModalAction, signer])
 
   return (
     <div className="w-full flex flex-col p-6">
@@ -38,7 +39,7 @@ export const FailedModal = ({ closeModalAction, paymentId: paymentIdProp }: Fail
 
         {/* Section 1 */}
         <div className="flex flex-col my-4">
-          {isWrapping && !bridgeError ? (
+          {isWrapping && (paymentIdProp || ongoingBridgeTx?.paymentId) ? (
             <div className="font-medium">
               <div className="text-xs text-gray-500">{t('transaction_id')}</div>
               <div className="text-sm">{paymentIdProp || ongoingBridgeTx?.paymentId}</div>
