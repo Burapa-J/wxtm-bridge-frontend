@@ -2,15 +2,20 @@ import { ApiError, OotleWrapTokenService, UserTransactionDTO } from '@tari-proje
 import i18next from 'i18next'
 import { isAddress } from 'viem'
 
-import { BridgeTxDetails } from '@/clients/tari-l1-signer'
-import { sendOotleStealth, waitOotleTransaction } from '@/clients/tari-ootle-signer'
+import TariL1Signer, { BridgeTxDetails } from '@/clients/tari-l1-signer'
+import {
+  getOotleTransactionOutcome,
+  isOotleSendRefused,
+  sendOotleStealth,
+  waitOotleTransaction,
+} from '@/clients/tari-ootle-signer'
 import {
   clearOotleWrapToResume,
   refreshOotleBalance,
   setLastOngoingBridgeTx,
   useTariAccountStore,
 } from '@/store/account'
-import { setBridgeError, setOotleWrapInFlight, useBridgeStore } from '@/store/bridge'
+import { setBridgeError, setOotleWrapInFlight, setOotleWrapUnconfirmedError, useBridgeStore } from '@/store/bridge'
 import useTariSigner from '@/store/signer'
 import { AssetConfig } from '@/utils/bridge-route'
 import { parseWxtmTokenAmount } from '@/utils/parse-wxtm-token-amount'
@@ -21,7 +26,7 @@ import { useWalletUtils } from './use-wallet'
 
 // Universe caps one wait at 600s; a deposit still pending after this stays stored and is resumed on the next load.
 const WAIT_TIMEOUT_SECS = 600
-const WAIT_ATTEMPTS = 3
+export const WAIT_ATTEMPTS = 3
 
 // The backend's answer once the wrap has left CREATED, e.g. after it already saw the deposit.
 const TRANSACTION_STATUS_INCORRECT = 'Transaction status is incorrect'
@@ -47,6 +52,25 @@ function showWrapFailed(tx: BridgeTxDetails) {
   })
 }
 
+// Shows that the deposit may have gone out but isn't confirmed; the record stays in TU for a retry.
+function showWrapUnconfirmed(tx: BridgeTxDetails) {
+  if (!isStillOngoing(tx)) return
+  setOotleWrapUnconfirmedError(i18next.getFixedT(null, 'main')('ootle_wrap_unconfirmed'))
+  // reopen the modal if the user closed it during the wait
+  const ongoing = useTariAccountStore.getState().ongoingBridgeTx
+  if (ongoing) setLastOngoingBridgeTx({ ...ongoing, showModal: true })
+}
+
+// Removes TU's record when it is this wrap's, whatever the tapplet is currently showing.
+async function removeStoredWrap(signer: TariL1Signer, paymentId: string) {
+  try {
+    const stored = await signer.getOngoingBridgeTx()
+    if (stored?.paymentId === paymentId) await signer.removeOngoingBridgeTx()
+  } catch (error) {
+    console.error('[ TAPPLET-BRIDGE ] Could not remove the stored Ootle wrap: ', errorSummary(error))
+  }
+}
+
 export const useBridgeOotleToEvm = () => {
   const signer = useTariSigner((s) => s.signer)
   const ootleAccount = useTariAccountStore((s) => s.ootleAccount)
@@ -55,37 +79,41 @@ export const useBridgeOotleToEvm = () => {
   const { getUserBackendBridgeTxs } = useBridgeTransaction()
 
   // Waits for the deposit and, only once it is Accepted, marks the wrap as sent.
-  const finishOotleWrap = async (tx: BridgeTxDetails, asset?: AssetConfig) => {
+  // Throws when the deposit can't be confirmed (e.g. Universe stopped answering); the record then stays.
+  const finishOotleWrap = async (tx: BridgeTxDetails, asset?: AssetConfig, attempts = WAIT_ATTEMPTS) => {
     if (!signer || !tx.clientToken || !tx.ootleTransactionId) return
 
     setOotleWrapInFlight(true)
     try {
-      await waitAndConfirm(tx, asset)
+      await waitAndConfirm(tx, asset, attempts)
     } finally {
       setOotleWrapInFlight(false)
     }
   }
 
-  const waitAndConfirm = async (tx: BridgeTxDetails, asset?: AssetConfig) => {
+  const waitAndConfirm = async (tx: BridgeTxDetails, asset: AssetConfig | undefined, attempts: number) => {
     if (!signer || !tx.clientToken || !tx.ootleTransactionId) return
 
     let status = 'Pending'
-    for (let i = 0; i < WAIT_ATTEMPTS && status === 'Pending'; i++) {
+    let outcome = getOotleTransactionOutcome(status)
+    for (let i = 0; i < attempts && outcome === 'pending'; i++) {
       const result = await waitOotleTransaction(tx.ootleTransactionId, WAIT_TIMEOUT_SECS)
       status = result.status
+      outcome = getOotleTransactionOutcome(status)
     }
 
-    if (status === 'Pending') {
-      console.warn('[ TAPPLET-BRIDGE ] Ootle deposit still pending: ', tx.paymentId)
+    if (outcome === 'pending') {
+      console.warn(`[ TAPPLET-BRIDGE ] Ootle deposit ${tx.paymentId} still ${status}`)
+      showWrapUnconfirmed(tx)
       return
     }
-    if (status !== 'Accepted') {
+    if (outcome === 'failed' || outcome === 'fee_only') {
       console.error(`[ TAPPLET-BRIDGE ] Ootle deposit ${tx.paymentId} ended as ${status}`)
+      // The wrap is dead: drop its record (and clientToken) from TU so it no longer blocks new bridges.
       clearOotleWrapToResume()
+      await removeStoredWrap(signer, tx.paymentId)
       if (isStillOngoing(tx)) {
-        // The wrap is dead: drop its record (and clientToken) from TU so it no longer blocks new bridges.
-        await signer.removeOngoingBridgeTx()
-        setBridgeError('')
+        setBridgeError(outcome === 'fee_only' ? i18next.getFixedT(null, 'main')('ootle_wrap_fee_only') : '')
         showWrapFailed(tx)
       }
       return
@@ -197,6 +225,15 @@ export const useBridgeOotleToEvm = () => {
       clientToken,
     }
 
+    // Stored in TU before the deposit, so the clientToken survives whatever happens to the send.
+    try {
+      await signer.setOngoingBridgeTx(tx)
+    } catch (error) {
+      console.error('[ TAPPLET-BRIDGE ] Could not store the Ootle wrap: ', errorSummary(error))
+      showWrapFailed(tx)
+      return
+    }
+
     try {
       const { transactionId } = await sendOotleStealth({
         amount: tokenAmount,
@@ -206,29 +243,31 @@ export const useBridgeOotleToEvm = () => {
       tx.ootleTransactionId = transactionId
     } catch (error) {
       console.error('[ TAPPLET-BRIDGE ] Ootle deposit failed: ', errorSummary(error))
-      showWrapFailed(tx)
+      if (isOotleSendRefused(error)) {
+        // nothing was sent
+        await removeStoredWrap(signer, paymentId)
+        showWrapFailed(tx)
+      } else {
+        // timed out or failed inside Universe: the deposit may still have gone out
+        showWrapUnconfirmed(tx)
+      }
       return
     }
 
-    // stored in TU so a reload between the deposit and tokens-sent can still finish
     try {
       await signer.setOngoingBridgeTx(tx)
       await getUserBackendBridgeTxs()
       await finishOotleWrap(tx, asset)
     } catch (error) {
-      // The deposit was sent; keep the stored tx so the next load can retry tokens-sent.
+      // The deposit was sent; keep the stored tx so a later retry can confirm it.
       console.error('[ TAPPLET-BRIDGE ] Could not confirm the Ootle deposit: ', errorSummary(error))
-      const ongoing = useTariAccountStore.getState().ongoingBridgeTx
-      if (isStillOngoing(tx)) {
-        setBridgeError(t('ootle_wrap_unconfirmed'))
-        // reopen the modal if the user closed it during the wait
-        if (ongoing) setLastOngoingBridgeTx({ ...ongoing, showModal: true })
-      }
+      showWrapUnconfirmed(tx)
     }
   }
 
   return {
     bridgeOotleToEvm,
     finishOotleWrap,
+    showWrapUnconfirmed,
   }
 }

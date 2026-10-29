@@ -6,13 +6,14 @@ import { ModalButton } from '@/components/modals/modal-button'
 import useTariSigner from '@/store/signer'
 import { useTranslation } from 'react-i18next'
 import { useBridgeStore } from '@/store/bridge'
-import { removeOngoingTransaction, useTariAccountStore } from '@/store/account'
+import { clearOotleWrapToResume, removeOngoingTransaction, useTariAccountStore } from '@/store/account'
 import { useBridgeRoute } from '@/hooks/use-bridge-route'
 import { getTransactionLabels } from '@/utils/bridge-route'
 
 export const FailedModal = ({ closeModalAction, paymentId: paymentIdProp, asset, ootleChainId }: FailedModalProps) => {
   const signer = useTariSigner((s) => s.signer)
   const bridgeError = useBridgeStore((s) => s.bridgeError)
+  const ootleWrapUnconfirmed = useBridgeStore((s) => s.ootleWrapUnconfirmed)
   const { route } = useBridgeRoute()
   const { isWrapping } = route
   const labels = getTransactionLabels(asset, ootleChainId, route.asset)
@@ -25,6 +26,19 @@ export const FailedModal = ({ closeModalAction, paymentId: paymentIdProp, asset,
     // With a bridgeError, any tx stored in TU is an Ootle deposit still to confirm on the next load.
     if (!bridgeError) await signer?.removeOngoingBridgeTx()
   }, [bridgeError, closeModalAction, signer])
+
+  // Stop waiting for an unconfirmed Ootle deposit; the backend still credits it by its payRef.
+  const handleDismissOotleWrap = useCallback(async () => {
+    closeModalAction()
+    removeOngoingTransaction()
+    clearOotleWrapToResume()
+    try {
+      const stored = await signer?.getOngoingBridgeTx()
+      if (stored?.network === 'Ootle') await signer?.removeOngoingBridgeTx()
+    } catch (error) {
+      console.error('[ TAPPLET-BRIDGE ] Could not dismiss the Ootle wrap: ', error)
+    }
+  }, [closeModalAction, signer])
 
   return (
     <div className="w-full flex flex-col p-6">
@@ -56,6 +70,11 @@ export const FailedModal = ({ closeModalAction, paymentId: paymentIdProp, asset,
 
           <div className="py-[0.5px] w-full bg-gray-300 my-2"></div>
           <ModalButton label={t('close')} onClick={handleOnClick} disabled={false} />
+          {ootleWrapUnconfirmed && (
+            <div className="mt-2">
+              <ModalButton label={t('ootle_wrap_dismiss')} onClick={handleDismissOotleWrap} disabled={false} />
+            </div>
+          )}
         </div>
       </div>
     </div>

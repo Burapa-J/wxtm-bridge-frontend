@@ -2,7 +2,9 @@ import { useMutation } from '@tanstack/react-query'
 
 import { UpdateToTokensSentReqDTO, UserTransactionDTO, WrapTokenService } from '@tari-project/wxtm-bridge-backend-api'
 
-import { useBridgeStore, setTariColdWalletAddress, setWrapTokenFeePercentageBps } from '@/store/bridge'
+import { useBridgeStore, setBridgeError, setTariColdWalletAddress, setWrapTokenFeePercentageBps } from '@/store/bridge'
+import { SignerTimeoutError } from '@/clients/tari-l1-signer'
+import i18next from 'i18next'
 import useTariSigner from '@/store/signer'
 import { parseWxtmTokenAmount } from '@/utils/parse-wxtm-token-amount'
 import { stringifyProperties } from '@/utils/stringifyProperties'
@@ -59,22 +61,34 @@ export const useBridgeToEthereum = () => {
     })
     console.debug('[ TAPPLET-BRIDGE ] created tx with id: ', paymentId)
 
-    // the amount is parsed in TU in the `send_one_sided_to_stealth_address` function
-    // so here it is necessary to pass the value entered by the user as is
-    const isSend = await signer?.sendOneSided({
-      amount: amount,
-      address: tariColdWalletAddress,
-      paymentId: paymentId,
-    })
-
     // add this line to store ongoing tx also in the TU to check on tapplet reload
-    // if any previous tx was finished with success/fail status to display it to a user
+    // if any previous tx was finished with success/fail status to display it to a user;
+    // stored before the send so a send that never answers still leaves a record
     await signer?.setOngoingBridgeTx({
       amount: amount,
       amountToReceive: amountAfterFee,
       destinationAddress: ethAddress,
       paymentId: paymentId,
     })
+
+    // the amount is parsed in TU in the `send_one_sided_to_stealth_address` function
+    // so here it is necessary to pass the value entered by the user as is
+    let isSend
+    try {
+      isSend = await signer?.sendOneSided({
+        amount: amount,
+        address: tariColdWalletAddress,
+        paymentId: paymentId,
+      })
+    } catch (error) {
+      if (!(error instanceof SignerTimeoutError)) throw error
+      // Universe may still have sent it: don't report a failure, ask the user to check first
+      console.error('[ TAPPLET-BRIDGE ] send one sided timed out')
+      setBridgeError(i18next.getFixedT(null, 'main')('wrap_unconfirmed'))
+      const ongoing = useTariAccountStore.getState().ongoingBridgeTx
+      if (ongoing) setLastOngoingBridgeTx({ ...ongoing, showModal: true })
+      return
+    }
 
     // get user txs to update history immediately after the tx starts
     await getUserBackendBridgeTxs()

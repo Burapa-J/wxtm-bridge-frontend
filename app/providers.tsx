@@ -55,13 +55,13 @@ export const Providers = ({ children }: { children: ReactNode }) => {
             window.location.ancestorOrigins,
             appConfig.UNIVERSE_ORIGINS,
           )
-          if (host === 'untrusted') {
-            console.error('[ TAPPLET-BRIDGE ] Not framed by Tari Universe; the signer is disabled')
+          // A host we can't verify (no ancestorOrigins) is treated as untrusted too.
+          if (host !== 'trusted') {
+            console.error(
+              `[ TAPPLET-BRIDGE ] Not framed by a verified Tari Universe origin (${host}); the signer is disabled`,
+            )
             initializedSignerRef.current = true
             return
-          }
-          if (host === 'unverified') {
-            console.warn('[ TAPPLET-BRIDGE ] Cannot verify the framing origin; continuing')
           }
         }
         try {

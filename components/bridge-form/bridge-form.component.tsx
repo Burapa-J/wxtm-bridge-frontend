@@ -17,7 +17,7 @@ import { useTranslation } from 'react-i18next'
 import { MainComponentProps } from '../main'
 import { setIsModalOpen, setModalStep } from '@/store/modal'
 import { useFormContext } from 'react-hook-form'
-import { setBridgeError, setNetworks, useBridgeStore } from '@/store/bridge'
+import { setBridgeError, setNetworks, setOotleWrapUnconfirmedError, useBridgeStore } from '@/store/bridge'
 import { useTariAccountStore } from '@/store/account'
 import useTariSigner from '@/store/signer'
 import { useBridgeOotleToEvm } from '@/hooks/use-bridge-ootle-to-evm'
@@ -37,6 +37,7 @@ export const BridgeForm = ({ remainingDailyLimit }: MainComponentProps) => {
     formState: { isValid },
   } = useFormContext()
 
+  const [checkingStoredWrap, setCheckingStoredWrap] = useState(false)
   const [openDropdown, setOpenDropdown] = useState<'from' | 'to' | null>(null)
 
   const { isConnected, chain, address } = useConnection()
@@ -71,25 +72,37 @@ export const BridgeForm = ({ remainingDailyLimit }: MainComponentProps) => {
     // still reconciles its deposit.
     let unfinished
     if (ootleAccount && signer) {
+      setCheckingStoredWrap(true)
       try {
         unfinished = await signer.getOngoingBridgeTx()
       } catch (error) {
-        console.error('[ TAPPLET-BRIDGE ] Could not read the ongoing bridge tx: ', error)
+        console.error('[ TAPPLET-BRIDGE ] Could not read the ongoing bridge tx: ', errorSummary(error))
+        setBridgeError(t('ootle_wrap_check_failed'))
+        setModalStep(1)
+        setIsModalOpen(true)
+        return
+      } finally {
+        setCheckingStoredWrap(false)
       }
     }
     if (unfinished?.network === 'Ootle' && unfinished.clientToken) {
-      const unfinishedText = t('ootle_wrap_unfinished')
-      setBridgeError(unfinishedText)
       setModalStep(1)
       setIsModalOpen(true)
-      // Retry it now; Continue stays disabled while it runs. When it settles, replace the "retrying" text
-      // unless the retry already showed its own outcome.
-      finishOotleWrap(unfinished)
+      // Without a transaction id there is nothing to wait on; the user can dismiss it from the modal.
+      if (!unfinished.ootleTransactionId) {
+        setOotleWrapUnconfirmedError(t('ootle_wrap_unconfirmed'))
+        return
+      }
+      const unfinishedText = t('ootle_wrap_unfinished')
+      setBridgeError(unfinishedText)
+      // One wait per click; Continue stays disabled while it runs. When it settles, replace the
+      // "retrying" text unless the retry already showed its own outcome.
+      finishOotleWrap(unfinished, undefined, 1)
         .then(async () => {
           if (useBridgeStore.getState().bridgeError !== unfinishedText) return
           const stored = await signer?.getOngoingBridgeTx()
           if (stored?.network === 'Ootle' && stored.clientToken) {
-            setBridgeError(t('ootle_wrap_unconfirmed'))
+            setOotleWrapUnconfirmedError(t('ootle_wrap_unconfirmed'))
           } else {
             setBridgeError('')
             setIsModalOpen(false)
@@ -97,7 +110,9 @@ export const BridgeForm = ({ remainingDailyLimit }: MainComponentProps) => {
         })
         .catch((error) => {
           console.error('[ TAPPLET-BRIDGE ] Retrying the Ootle wrap failed: ', errorSummary(error))
-          if (useBridgeStore.getState().bridgeError === unfinishedText) setBridgeError(t('ootle_wrap_unconfirmed'))
+          if (useBridgeStore.getState().bridgeError === unfinishedText) {
+            setOotleWrapUnconfirmedError(t('ootle_wrap_unconfirmed'))
+          }
         })
       return
     }
@@ -240,7 +255,10 @@ export const BridgeForm = ({ remainingDailyLimit }: MainComponentProps) => {
                     {t('connect_wallet')}
                   </MainButton>
                 ) : (
-                  <MainButton onClick={handleContinueClick} disabled={!isValid || isDisabled || ootleWrapInFlight}>
+                  <MainButton
+                    onClick={handleContinueClick}
+                    disabled={!isValid || isDisabled || ootleWrapInFlight || checkingStoredWrap}
+                  >
                     <div className="flex">
                       {t('continue')}
                       <FaArrowRight className="ml-2" />

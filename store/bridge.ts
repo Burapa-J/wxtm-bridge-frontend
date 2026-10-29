@@ -22,6 +22,8 @@ interface BridgeConfigStoreState {
   ootleWrapInFlight: boolean
   // Shown in the failed modal instead of the generic failure text.
   bridgeError: string
+  // The bridgeError is about a stored Ootle wrap that could not be confirmed; the user may dismiss it.
+  ootleWrapUnconfirmed: boolean
 }
 const initialState: BridgeConfigStoreState = {
   wrapTokenFeePercentageBps: 50, // 0.5% fee
@@ -43,6 +45,7 @@ const initialState: BridgeConfigStoreState = {
   ootleUnavailable: false,
   ootleWrapInFlight: false,
   bridgeError: '',
+  ootleWrapUnconfirmed: false,
 }
 
 export const useBridgeStore = create<BridgeConfigStoreState>()(() => ({
@@ -72,7 +75,10 @@ export const setOotleConfig = (ootleAssets: AssetConfig[], ootleColdAccountAddre
 
 export const setOotleUnavailable = (ootleUnavailable: boolean) => useBridgeStore.setState({ ootleUnavailable })
 export const setOotleWrapInFlight = (ootleWrapInFlight: boolean) => useBridgeStore.setState({ ootleWrapInFlight })
-export const setBridgeError = (bridgeError: string) => useBridgeStore.setState({ bridgeError })
+export const setBridgeError = (bridgeError: string) =>
+  useBridgeStore.setState({ bridgeError, ootleWrapUnconfirmed: false })
+export const setOotleWrapUnconfirmedError = (bridgeError: string) =>
+  useBridgeStore.setState({ bridgeError, ootleWrapUnconfirmed: true })
 
 export const setUnwrapFailed = (unwrapFailed: boolean) => useBridgeStore.setState({ unwrapFailed })
 export const setUnwrapSuccess = (unwrapSuccess: boolean) => useBridgeStore.setState({ unwrapSuccess })

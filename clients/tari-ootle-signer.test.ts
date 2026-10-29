@@ -3,6 +3,8 @@ import { sendSignerCall } from './tari-l1-signer'
 import {
   getOotleAccount,
   getOotleBalance,
+  getOotleTransactionOutcome,
+  isOotleSendRefused,
   OotleSignerError,
   sendOotleStealth,
   toOotleSignerError,
@@ -82,5 +84,27 @@ describe('Ootle signer calls', () => {
       [{ transactionId: 'tx-1', timeoutSecs: 600 }],
       660000,
     )
+  })
+})
+
+describe('getOotleTransactionOutcome', () => {
+  it('treats only final statuses as final', () => {
+    expect(getOotleTransactionOutcome('Accepted')).toBe('accepted')
+    expect(getOotleTransactionOutcome('Rejected')).toBe('failed')
+    expect(getOotleTransactionOutcome('InvalidTransaction')).toBe('failed')
+    expect(getOotleTransactionOutcome('OnlyFeeAccepted')).toBe('fee_only')
+    expect(getOotleTransactionOutcome('Pending')).toBe('pending')
+    expect(getOotleTransactionOutcome('New')).toBe('pending')
+    expect(getOotleTransactionOutcome('DryRun')).toBe('pending')
+  })
+})
+
+describe('isOotleSendRefused', () => {
+  it('is true only for refusals where nothing was sent', () => {
+    for (const code of ['denied', 'busy', 'invalid_arguments', 'l2_unavailable'] as const) {
+      expect(isOotleSendRefused(new OotleSignerError(code))).toBe(true)
+    }
+    expect(isOotleSendRefused(new OotleSignerError('failed'))).toBe(false)
+    expect(isOotleSendRefused(new Error('Signer call sendOotleStealth timed out'))).toBe(false)
   })
 })

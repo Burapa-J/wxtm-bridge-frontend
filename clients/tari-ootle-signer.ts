@@ -26,6 +26,26 @@ export interface OotleTransactionResult {
   status: string
 }
 
+// What a waitOotleTransaction status means for the wrap. Universe returns the last status it saw at the
+// deadline, which can be a non-final one such as 'New' or 'DryRun'.
+export function getOotleTransactionOutcome(status: string): 'accepted' | 'failed' | 'fee_only' | 'pending' {
+  if (status === 'Accepted') return 'accepted'
+  if (status === 'Rejected' || status === 'InvalidTransaction') return 'failed'
+  if (status === 'OnlyFeeAccepted') return 'fee_only'
+  return 'pending'
+}
+
+// Universe refused the send outright, so nothing left the wallet.
+export function isOotleSendRefused(error: unknown): boolean {
+  return (
+    error instanceof OotleSignerError &&
+    (error.code === 'denied' ||
+      error.code === 'busy' ||
+      error.code === 'invalid_arguments' ||
+      error.code === 'l2_unavailable')
+  )
+}
+
 export type OotleSignerErrorCode = 'l2_unavailable' | 'busy' | 'denied' | 'failed' | 'invalid_arguments'
 
 export class OotleSignerError extends Error {

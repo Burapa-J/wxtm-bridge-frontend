@@ -213,6 +213,9 @@ export class TariL1Signer {
 
 // Every signer client shares this one postMessage channel. Ids are random so another frame can't guess
 // them, and only replies from Universe (the parent window) are accepted.
+// Universe didn't answer in time; the call may still have run there.
+export class SignerTimeoutError extends Error {}
+
 const SIGNER_CALL_TIMEOUT_MS = 60_000
 // Sends wait for the user to enter their PIN in Universe.
 export const SIGNER_SEND_TIMEOUT_MS = 10 * 60_000
@@ -226,7 +229,7 @@ export function sendSignerCall(
   return new Promise<unknown>((resolve, reject) => {
     const timer = setTimeout(() => {
       window.removeEventListener('message', event_ref)
-      reject(new Error(`Signer call ${methodName} timed out`))
+      reject(new SignerTimeoutError(`Signer call ${methodName} timed out`))
     }, timeoutMs)
 
     const event_ref = (resp: MessageEvent<SignerResponse<SignerMethodNames>>) => {
