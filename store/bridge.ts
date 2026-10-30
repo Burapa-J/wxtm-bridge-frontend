@@ -18,12 +18,14 @@ interface BridgeConfigStoreState {
   ootleAssets: AssetConfig[]
   ootleColdAccountAddress: string
   ootleUnavailable: boolean
-  // An Ootle wrap is between its deposit and tokens-sent; no new bridge may start meanwhile.
-  ootleWrapInFlight: boolean
+  // paymentId of the Ootle wrap between its deposit and tokens-sent ('' if none); no new bridge may
+  // start meanwhile, and only that wrap may release it.
+  ootleWrapInFlightId: string
   // Shown in the failed modal instead of the generic failure text.
   bridgeError: string
-  // The bridgeError is about a stored Ootle wrap that could not be confirmed; the user may dismiss it.
-  ootleWrapUnconfirmed: boolean
+  // paymentId of the stored record the bridgeError is about, when its deposit could not be confirmed;
+  // the user may dismiss that record ('' if none).
+  unconfirmedPaymentId: string
 }
 const initialState: BridgeConfigStoreState = {
   wrapTokenFeePercentageBps: 50, // 0.5% fee
@@ -43,9 +45,9 @@ const initialState: BridgeConfigStoreState = {
   ootleAssets: [],
   ootleColdAccountAddress: '',
   ootleUnavailable: false,
-  ootleWrapInFlight: false,
+  ootleWrapInFlightId: '',
   bridgeError: '',
-  ootleWrapUnconfirmed: false,
+  unconfirmedPaymentId: '',
 }
 
 export const useBridgeStore = create<BridgeConfigStoreState>()(() => ({
@@ -74,11 +76,14 @@ export const setOotleConfig = (ootleAssets: AssetConfig[], ootleColdAccountAddre
   useBridgeStore.setState({ ootleAssets, ootleColdAccountAddress })
 
 export const setOotleUnavailable = (ootleUnavailable: boolean) => useBridgeStore.setState({ ootleUnavailable })
-export const setOotleWrapInFlight = (ootleWrapInFlight: boolean) => useBridgeStore.setState({ ootleWrapInFlight })
+export const lockOotleWrapInFlight = (paymentId: string) => useBridgeStore.setState({ ootleWrapInFlightId: paymentId })
+export const releaseOotleWrapInFlight = (paymentId: string) => {
+  if (useBridgeStore.getState().ootleWrapInFlightId === paymentId) useBridgeStore.setState({ ootleWrapInFlightId: '' })
+}
 export const setBridgeError = (bridgeError: string) =>
-  useBridgeStore.setState({ bridgeError, ootleWrapUnconfirmed: false })
-export const setOotleWrapUnconfirmedError = (bridgeError: string) =>
-  useBridgeStore.setState({ bridgeError, ootleWrapUnconfirmed: true })
+  useBridgeStore.setState({ bridgeError, unconfirmedPaymentId: '' })
+export const setUnconfirmedError = (bridgeError: string, paymentId: string) =>
+  useBridgeStore.setState({ bridgeError, unconfirmedPaymentId: paymentId })
 
 export const setUnwrapFailed = (unwrapFailed: boolean) => useBridgeStore.setState({ unwrapFailed })
 export const setUnwrapSuccess = (unwrapSuccess: boolean) => useBridgeStore.setState({ unwrapSuccess })

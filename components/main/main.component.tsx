@@ -22,7 +22,7 @@ export const MainComponent = ({ remainingDailyLimit }: MainComponentProps) => {
   const bridgeTxs = useTariAccountStore((s) => s.combinedBridgeTxs)
   const ootleUnavailable = useBridgeStore((s) => s.ootleUnavailable)
   const ootleAssets = useBridgeStore((s) => s.ootleAssets)
-  const ootleWrapInFlight = useBridgeStore((s) => s.ootleWrapInFlight)
+  const ootleWrapInFlight = useBridgeStore((s) => s.ootleWrapInFlightId !== '')
   const { route } = useBridgeRoute()
 
   const notices: string[] = []

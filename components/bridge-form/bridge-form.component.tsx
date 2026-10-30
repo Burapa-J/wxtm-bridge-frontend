@@ -17,7 +17,7 @@ import { useTranslation } from 'react-i18next'
 import { MainComponentProps } from '../main'
 import { setIsModalOpen, setModalStep } from '@/store/modal'
 import { useFormContext } from 'react-hook-form'
-import { setBridgeError, setNetworks, setOotleWrapUnconfirmedError, useBridgeStore } from '@/store/bridge'
+import { setBridgeError, setNetworks, setUnconfirmedError, useBridgeStore } from '@/store/bridge'
 import { useTariAccountStore } from '@/store/account'
 import useTariSigner from '@/store/signer'
 import { useBridgeOotleToEvm } from '@/hooks/use-bridge-ootle-to-evm'
@@ -31,7 +31,7 @@ export const BridgeForm = ({ remainingDailyLimit }: MainComponentProps) => {
   const { assets, networks, from: fromNetwork, to: toNetwork, route } = useBridgeRoute()
   const { asset, isWrapping } = route
   // No new bridge while an Ootle deposit awaits confirmation; it would take over the ongoing tx.
-  const ootleWrapInFlight = useBridgeStore((s) => s.ootleWrapInFlight)
+  const ootleWrapInFlight = useBridgeStore((s) => s.ootleWrapInFlightId !== '')
   const {
     setValue,
     formState: { isValid },
@@ -90,7 +90,7 @@ export const BridgeForm = ({ remainingDailyLimit }: MainComponentProps) => {
       setIsModalOpen(true)
       // Without a transaction id there is nothing to wait on; the user can dismiss it from the modal.
       if (!unfinished.ootleTransactionId) {
-        setOotleWrapUnconfirmedError(t('ootle_wrap_unconfirmed'))
+        setUnconfirmedError(t('ootle_wrap_maybe_sent'), unfinished.paymentId)
         return
       }
       const unfinishedText = t('ootle_wrap_unfinished')
@@ -102,7 +102,7 @@ export const BridgeForm = ({ remainingDailyLimit }: MainComponentProps) => {
           if (useBridgeStore.getState().bridgeError !== unfinishedText) return
           const stored = await signer?.getOngoingBridgeTx()
           if (stored?.network === 'Ootle' && stored.clientToken) {
-            setOotleWrapUnconfirmedError(t('ootle_wrap_unconfirmed'))
+            setUnconfirmedError(t('ootle_wrap_unconfirmed'), unfinished.paymentId)
           } else {
             setBridgeError('')
             setIsModalOpen(false)
@@ -111,7 +111,7 @@ export const BridgeForm = ({ remainingDailyLimit }: MainComponentProps) => {
         .catch((error) => {
           console.error('[ TAPPLET-BRIDGE ] Retrying the Ootle wrap failed: ', errorSummary(error))
           if (useBridgeStore.getState().bridgeError === unfinishedText) {
-            setOotleWrapUnconfirmedError(t('ootle_wrap_unconfirmed'))
+            setUnconfirmedError(t('ootle_wrap_unconfirmed'), unfinished.paymentId)
           }
         })
       return

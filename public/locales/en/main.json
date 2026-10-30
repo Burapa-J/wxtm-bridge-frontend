@@ -91,5 +91,6 @@
   "ootle_wrap_check_failed": "We could not check for an earlier unconfirmed TARI deposit, so no new bridge was started. Please try again.",
   "ootle_wrap_dismiss": "Stop waiting for this deposit",
   "ootle_wrap_fee_only": "Your TARI deposit was not accepted: only the network fee was deducted, the amount stayed in your Ootle wallet.",
-  "wrap_unconfirmed": "We could not confirm that your deposit was sent. Check your transaction history before trying again."
+  "wrap_unconfirmed": "We could not confirm that your deposit was sent. Check your transaction history before trying again.",
+  "ootle_wrap_maybe_sent": "We could not tell whether your TARI deposit was sent. Check your Ootle wallet history before dismissing this or trying again."
 }

@@ -2,7 +2,14 @@ import { useMutation } from '@tanstack/react-query'
 
 import { UpdateToTokensSentReqDTO, UserTransactionDTO, WrapTokenService } from '@tari-project/wxtm-bridge-backend-api'
 
-import { useBridgeStore, setBridgeError, setTariColdWalletAddress, setWrapTokenFeePercentageBps } from '@/store/bridge'
+import {
+  useBridgeStore,
+  setBridgeError,
+  setTariColdWalletAddress,
+  setUnconfirmedError,
+  setWrapTokenFeePercentageBps,
+} from '@/store/bridge'
+import { getUnfinishedOotleWrapError } from './use-bridge-ootle-to-evm'
 import { SignerTimeoutError } from '@/clients/tari-l1-signer'
 import i18next from 'i18next'
 import useTariSigner from '@/store/signer'
@@ -37,6 +44,13 @@ export const useBridgeToEthereum = () => {
     amountAfterFee: string
   }) => {
     if (!tariAccount || !signer) return
+
+    // Universe keeps one ongoing tx; don't overwrite an Ootle wrap that is still being confirmed.
+    const unfinished = await getUnfinishedOotleWrapError(signer)
+    if (unfinished) {
+      setBridgeError(i18next.getFixedT(null, 'main')(unfinished))
+      return
+    }
 
     const parsedAmount = parseWxtmTokenAmount(amount)
 
@@ -84,7 +98,7 @@ export const useBridgeToEthereum = () => {
       if (!(error instanceof SignerTimeoutError)) throw error
       // Universe may still have sent it: don't report a failure, ask the user to check first
       console.error('[ TAPPLET-BRIDGE ] send one sided timed out')
-      setBridgeError(i18next.getFixedT(null, 'main')('wrap_unconfirmed'))
+      setUnconfirmedError(i18next.getFixedT(null, 'main')('wrap_unconfirmed'), paymentId)
       const ongoing = useTariAccountStore.getState().ongoingBridgeTx
       if (ongoing) setLastOngoingBridgeTx({ ...ongoing, showModal: true })
       return
