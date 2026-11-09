@@ -7,6 +7,7 @@ import {
   evmToTariUnits,
   getNetworkChoices,
   getOotleAssets,
+  getOotleUnwrapRefusal,
   getSafeExplorerUrl,
   getTransactionAsset,
   getWxtmAsset,
@@ -287,5 +288,41 @@ describe('isSameOption and networkOptionKey', () => {
     expect(isSameOption('Tari', 'Ootle')).toBe(false)
     expect(isSameOption('Ootle', wtariOnSepolia)).toBe(false)
     expect(networkOptionKey('Ootle')).toBe('Ootle')
+  })
+})
+
+describe('getOotleUnwrapRefusal', () => {
+  const loaded = () => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    return getOotleAssets(fixture)
+  }
+  const fresh = (status: OotlePublicEvmChainDTO.status) => {
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    return getOotleAssets(params([chain(baseSepolia.id, status, 'Base Sepolia')]))
+  }
+
+  it('allows the burn while the chain is active or unwrap_only', () => {
+    const [asset] = loaded()
+    expect(getOotleUnwrapRefusal(asset, fresh(OotlePublicEvmChainDTO.status.ACTIVE))).toBe('')
+    expect(getOotleUnwrapRefusal(asset, fresh(OotlePublicEvmChainDTO.status.UNWRAP_ONLY))).toBe('')
+  })
+
+  it('refuses once the chain is disabled or gone from the registry', () => {
+    const [asset] = loaded()
+    expect(getOotleUnwrapRefusal(asset, fresh(OotlePublicEvmChainDTO.status.DISABLED))).toBe('ootle_chain_unavailable')
+    expect(getOotleUnwrapRefusal(asset, [])).toBe('ootle_chain_unavailable')
+  })
+
+  it('refuses when the fresh entry has other addresses than the loaded route', () => {
+    const [asset] = loaded()
+    const [current] = fresh(OotlePublicEvmChainDTO.status.ACTIVE)
+    expect(getOotleUnwrapRefusal(asset, [{ ...current, bridgeAddress: '0x9999999999999999999999999999999999999999' }])).toBe(
+      'ootle_chain_unavailable',
+    )
+  })
+
+  it('fails closed when the registry could not be read', () => {
+    const [asset] = loaded()
+    expect(getOotleUnwrapRefusal(asset, undefined)).toBe('ootle_chain_check_failed')
   })
 })

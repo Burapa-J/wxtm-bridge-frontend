@@ -5,7 +5,7 @@ import { BackendBridgeTransaction, BackendUnwrapTransaction, CombinedBridgeTrans
 import { BridgeTxDetails } from '@/clients/tari-l1-signer'
 import { getOotleAccount, getOotleBalance, OotleAccount, OotleSignerError } from '@/clients/tari-ootle-signer'
 import { OotleWrapTokenService } from '@tari-project/wxtm-bridge-backend-api'
-import { getOotleAssets } from '@/utils/bridge-route'
+import { AssetConfig, getOotleAssets } from '@/utils/bridge-route'
 import { setOotleConfig, setOotleUnavailable } from './bridge'
 import useAppStore from './app'
 import { isOotleParamsForNetwork } from '@/utils/ootle-address'
@@ -142,31 +142,32 @@ export const refreshOotleBalance = async () => {
   }
 }
 
+// The chain registry's Ootle assets for Universe's current network: [] when the params are for another
+// network or carry an invalid cold account, undefined when they can't be fetched.
+async function fetchOotleRegistry(): Promise<{ assets: AssetConfig[]; coldAccountAddress: string } | undefined> {
+  let params
+  try {
+    params = await OotleWrapTokenService.getOotleWrapTokenParams()
+  } catch (error) {
+    console.info('[ TAPPLET-BRIDGE ] Ootle bridge not available: ', error)
+    return undefined
+  }
+  const network = useAppStore.getState().network
+  if (!isOotleParamsForNetwork(params.ootleNetwork, params.coldAccountAddress, network)) {
+    console.warn(
+      `[ TAPPLET-BRIDGE ] Ootle params are for ${params.ootleNetwork}, not ${network}, or the cold account is invalid; hiding Ootle`,
+    )
+    return { assets: [], coldAccountAddress: '' }
+  }
+  return { assets: getOotleAssets(params), coldAccountAddress: params.coldAccountAddress }
+}
+
 // Offers the Ootle routes only when the backend has a usable wTARI chain and Universe's Ootle wallet is open.
 export const loadOotleBridge = async () => {
   if (process.env.NODE_ENV === 'development') return
 
-  let assets
-  let coldAccountAddress
-  let ootleNetwork
-  try {
-    const params = await OotleWrapTokenService.getOotleWrapTokenParams()
-    assets = getOotleAssets(params)
-    coldAccountAddress = params.coldAccountAddress
-    ootleNetwork = params.ootleNetwork
-  } catch (error) {
-    console.info('[ TAPPLET-BRIDGE ] Ootle bridge not available: ', error)
-    return
-  }
-  if (!assets.length) return
-
-  const network = useAppStore.getState().network
-  if (!isOotleParamsForNetwork(ootleNetwork, coldAccountAddress, network)) {
-    console.warn(
-      `[ TAPPLET-BRIDGE ] Ootle params are for ${ootleNetwork}, not ${network}, or the cold account is invalid; hiding Ootle`,
-    )
-    return
-  }
+  const registry = await fetchOotleRegistry()
+  if (!registry?.assets.length) return
 
   try {
     const ootleAccount = await getOotleAccount()
@@ -181,5 +182,27 @@ export const loadOotleBridge = async () => {
   }
 
   await refreshOotleBalance()
-  setOotleConfig(assets, coldAccountAddress)
+  setOotleConfig(registry.assets, registry.coldAccountAddress)
+}
+
+let registryRefresh: Promise<AssetConfig[] | undefined> | undefined
+
+// Re-reads the chain registry during an open session so status changes (unwrap_only, disabled, removed)
+// reach the selector without a reload. Returns the fresh Ootle assets, or undefined when the registry
+// could not be read; the selector then keeps its current list. Concurrent calls share one request.
+export const refreshOotleRegistry = (): Promise<AssetConfig[] | undefined> => {
+  registryRefresh ??= (async () => {
+    try {
+      const registry = await fetchOotleRegistry()
+      if (!registry) return undefined
+      // Only a loaded Ootle bridge has a selector to update.
+      if (useTariAccountStore.getState().ootleAccount) {
+        setOotleConfig(registry.assets, registry.coldAccountAddress)
+      }
+      return registry.assets
+    } finally {
+      registryRefresh = undefined
+    }
+  })()
+  return registryRefresh
 }

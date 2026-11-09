@@ -21,6 +21,7 @@ import { useFetchDailyLimit } from '@/hooks/use-fetch-daily-limit'
 import { setIsModalOpen, setModalStep, useModalStore } from '@/store/modal'
 import { useBridgeRoute } from '@/hooks/use-bridge-route'
 import { useBridgeOotleToEvm } from '@/hooks/use-bridge-ootle-to-evm'
+import { useOotleRegistryRefresh } from '@/hooks/use-ootle-registry-refresh'
 import { errorSummary } from '@/utils/error-summary'
 
 const REFETCH_LIMIT_INTERVAL = 30 * 1000 // 30 sec
@@ -44,6 +45,7 @@ export default function Home() {
 
   const fetchDailyLimit = useFetchDailyLimit(asset)
   const { finishOotleWrap } = useBridgeOotleToEvm()
+  useOotleRegistryRefresh()
   const { isConnected, address: ethAddress } = useConnection()
   const { getUserBackendBridgeTxs } = useBridgeTransaction()
   const { getBridgeTxParams } = useBridgeToEthereum()

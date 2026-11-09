@@ -146,6 +146,26 @@ export function getOotleAssets(params: GetOotleWrapTokenParamsRespDTO): AssetCon
   return assets
 }
 
+// The message key for why an unwrap (EVM burn) to Ootle on `asset` must not be submitted, given a fresh
+// registry read ('' when it may). active and unwrap_only chains both accept unwraps; a disabled, removed
+// or re-addressed chain does not, and an unreadable registry fails closed.
+export function getOotleUnwrapRefusal(
+  asset: AssetConfig,
+  freshAssets: AssetConfig[] | undefined,
+): '' | 'ootle_chain_check_failed' | 'ootle_chain_unavailable' {
+  if (!freshAssets) return 'ootle_chain_check_failed'
+  const fresh = freshAssets.find((a) => a.kind === 'ootle' && a.chainId === asset.chainId)
+  if (
+    !fresh ||
+    (fresh.status !== 'active' && fresh.status !== 'unwrap_only') ||
+    fresh.tokenAddress.toLowerCase() !== asset.tokenAddress.toLowerCase() ||
+    fresh.bridgeAddress.toLowerCase() !== asset.bridgeAddress.toLowerCase()
+  ) {
+    return 'ootle_chain_unavailable'
+  }
+  return ''
+}
+
 function isEvmFor(option: NetworkOption, asset: AssetConfig): boolean {
   return typeof option === 'object' && option.asset === asset.kind && option.chainId === asset.chainId
 }

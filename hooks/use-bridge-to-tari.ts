@@ -9,10 +9,15 @@ import { wTARIAbi, wTARIBridgeAbi, wXTMAbi, wXTMBridgeAbi } from '@/contracts/ab
 import { useConfig, useConnection, useReadContract, useSwitchChain, useWriteContract } from 'wagmi'
 import { getWalletClient } from 'wagmi/actions'
 import i18next from 'i18next'
-import { setLastOngoingBridgeTx } from '@/store/account'
+import { refreshOotleRegistry, setLastOngoingBridgeTx } from '@/store/account'
 import { setBridgeError, setExceededDailyLimit } from '@/store/bridge'
 import useAppStore from '@/store/app'
-import { AssetConfig, amountAfterFee as getAmountAfterFee, evmToTariUnits } from '@/utils/bridge-route'
+import {
+  AssetConfig,
+  amountAfterFee as getAmountAfterFee,
+  evmToTariUnits,
+  getOotleUnwrapRefusal,
+} from '@/utils/bridge-route'
 import { isOotleAddress } from '@/utils/ootle-address'
 
 export const useBridgeToTari = (ethAddress: `0x${string}`, asset: AssetConfig) => {
@@ -136,6 +141,17 @@ export const useBridgeToTari = (ethAddress: `0x${string}`, asset: AssetConfig) =
         validBefore,
         authNonce,
       )
+
+      // The registry can change while the tapplet is open (e.g. the chain is disabled); recheck it right
+      // before the irreversible burn rather than trusting the list loaded at startup.
+      if (asset.kind === 'ootle') {
+        const refusal = getOotleUnwrapRefusal(asset, await refreshOotleRegistry())
+        if (refusal) {
+          console.error(`[ TAPPLET-BRIDGE ] Not burning on chain ${chainId}: ${refusal}`)
+          setBridgeError(t(refusal, { token: asset.evmToken, chain: asset.chainName }))
+          return false
+        }
+      }
 
       console.debug(`[ TAPPLET-BRIDGE ] Processing bridge to Tari...`)
 
