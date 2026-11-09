@@ -21,6 +21,10 @@ interface BridgeConfigStoreState {
   // paymentId of the Ootle wrap between its deposit and tokens-sent ('' if none); no new bridge may
   // start meanwhile, and only that wrap may release it.
   ootleWrapInFlightId: string
+  // Id of the bridge start (Ootle or wXTM wrap) currently running ('' if none). Claimed synchronously
+  // before the start's first await and held until it returns, so two starts can't both pass the
+  // unfinished-wrap check and then race for Universe's single ongoing-tx slot.
+  bridgeStartId: string
   // Shown in the failed modal instead of the generic failure text.
   bridgeError: string
   // paymentId of the stored record the bridgeError is about, when its deposit could not be confirmed;
@@ -46,6 +50,7 @@ const initialState: BridgeConfigStoreState = {
   ootleColdAccountAddress: '',
   ootleUnavailable: false,
   ootleWrapInFlightId: '',
+  bridgeStartId: '',
   bridgeError: '',
   unconfirmedPaymentId: '',
 }
@@ -76,9 +81,25 @@ export const setOotleConfig = (ootleAssets: AssetConfig[], ootleColdAccountAddre
   useBridgeStore.setState({ ootleAssets, ootleColdAccountAddress })
 
 export const setOotleUnavailable = (ootleUnavailable: boolean) => useBridgeStore.setState({ ootleUnavailable })
-export const lockOotleWrapInFlight = (paymentId: string) => useBridgeStore.setState({ ootleWrapInFlightId: paymentId })
+// Takes the in-flight lock for paymentId when it is free or already this wrap's; false when another wrap holds it.
+export const lockOotleWrapInFlight = (paymentId: string): boolean => {
+  const held = useBridgeStore.getState().ootleWrapInFlightId
+  if (held && held !== paymentId) return false
+  if (!held) useBridgeStore.setState({ ootleWrapInFlightId: paymentId })
+  return true
+}
 export const releaseOotleWrapInFlight = (paymentId: string) => {
   if (useBridgeStore.getState().ootleWrapInFlightId === paymentId) useBridgeStore.setState({ ootleWrapInFlightId: '' })
+}
+// Check-and-set in one synchronous step: returns the claim id, or '' when another start holds it.
+export const claimBridgeStart = (): string => {
+  if (useBridgeStore.getState().bridgeStartId) return ''
+  const id = crypto.randomUUID()
+  useBridgeStore.setState({ bridgeStartId: id })
+  return id
+}
+export const releaseBridgeStart = (id: string) => {
+  if (id && useBridgeStore.getState().bridgeStartId === id) useBridgeStore.setState({ bridgeStartId: '' })
 }
 export const setBridgeError = (bridgeError: string) =>
   useBridgeStore.setState({ bridgeError, unconfirmedPaymentId: '' })

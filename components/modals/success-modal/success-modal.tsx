@@ -22,6 +22,7 @@ import {
 import { SuccessModalProps } from './success-modal.types'
 import { useBridgeRoute } from '@/hooks/use-bridge-route'
 import { getUnlistedOotleLabels } from '@/utils/bridge-route'
+import { removeStoredWrap } from '@/hooks/use-bridge-ootle-to-evm'
 
 export const SuccessModal = ({
   closeModalAction,
@@ -71,9 +72,13 @@ export const SuccessModal = ({
   }, [addTokenToWalletAction, asset])
   const handleOnClick = useCallback(async () => {
     closeModalAction()
+    // A history entry is not the current bridge: its close must not clear the current one's state or TU record.
+    if (detailedTx) return
+    const paymentId = useTariAccountStore.getState().ongoingBridgeTx?.paymentId
     removeOngoingTransaction()
-    await signer?.removeOngoingBridgeTx()
-  }, [closeModalAction, signer])
+    // TU's record may by now belong to a newer bridge; remove it only if it is still this one's.
+    await removeStoredWrap(signer, paymentId)
+  }, [closeModalAction, detailedTx, signer])
 
   const transaction = detailedTx || ongoingBridgeTx
   const { amount: txAmount, decimals } = transaction ? getTransactionAmount(transaction) : { amount: '0', decimals: 6 }

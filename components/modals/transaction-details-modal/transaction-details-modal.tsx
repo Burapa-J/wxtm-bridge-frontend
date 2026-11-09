@@ -63,6 +63,7 @@ const TransactionDetailsModal = memo(function TransactionDetailsModal({
           <FailedModal
             closeModalAction={closeModalAction}
             paymentId={transaction.paymentId}
+            fromHistory
             asset={asset}
             ootleChainId={transaction.ootleChainId}
           />

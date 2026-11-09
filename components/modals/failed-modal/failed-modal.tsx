@@ -8,9 +8,16 @@ import { useTranslation } from 'react-i18next'
 import { useBridgeStore } from '@/store/bridge'
 import { clearOotleWrapToResume, removeOngoingTransaction, useTariAccountStore } from '@/store/account'
 import { useBridgeRoute } from '@/hooks/use-bridge-route'
+import { removeStoredWrap } from '@/hooks/use-bridge-ootle-to-evm'
 import { getTransactionLabels } from '@/utils/bridge-route'
 
-export const FailedModal = ({ closeModalAction, paymentId: paymentIdProp, asset, ootleChainId }: FailedModalProps) => {
+export const FailedModal = ({
+  closeModalAction,
+  paymentId: paymentIdProp,
+  fromHistory,
+  asset,
+  ootleChainId,
+}: FailedModalProps) => {
   const signer = useTariSigner((s) => s.signer)
   const bridgeError = useBridgeStore((s) => s.bridgeError)
   const unconfirmedPaymentId = useBridgeStore((s) => s.unconfirmedPaymentId)
@@ -22,10 +29,14 @@ export const FailedModal = ({ closeModalAction, paymentId: paymentIdProp, asset,
 
   const handleOnClick = useCallback(async () => {
     closeModalAction()
+    // A history entry is not the current bridge: its close must not clear the current one's state or TU record.
+    if (fromHistory) return
+    const paymentId = useTariAccountStore.getState().ongoingBridgeTx?.paymentId
     removeOngoingTransaction()
     // With a bridgeError, TU may hold a deposit that is not confirmed yet (Ootle or wXTM); keep it.
-    if (!bridgeError) await signer?.removeOngoingBridgeTx()
-  }, [bridgeError, closeModalAction, signer])
+    // Otherwise remove TU's record only if it is still this transaction's.
+    if (!bridgeError) await removeStoredWrap(signer, paymentId)
+  }, [bridgeError, closeModalAction, fromHistory, signer])
 
   // Stop waiting for an unconfirmed deposit; the backend still credits it by its paymentId/payRef.
   const handleDismissUnconfirmed = useCallback(async () => {
@@ -70,7 +81,7 @@ export const FailedModal = ({ closeModalAction, paymentId: paymentIdProp, asset,
 
           <div className="py-[0.5px] w-full bg-gray-300 my-2"></div>
           <ModalButton label={t('close')} onClick={handleOnClick} disabled={false} />
-          {unconfirmedPaymentId !== '' && (
+          {!fromHistory && unconfirmedPaymentId !== '' && (
             <div className="mt-2">
               <ModalButton label={t('ootle_wrap_dismiss')} onClick={handleDismissUnconfirmed} disabled={false} />
             </div>

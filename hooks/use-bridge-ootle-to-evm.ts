@@ -16,7 +16,9 @@ import {
   useTariAccountStore,
 } from '@/store/account'
 import {
+  claimBridgeStart,
   lockOotleWrapInFlight,
+  releaseBridgeStart,
   releaseOotleWrapInFlight,
   setBridgeError,
   setUnconfirmedError,
@@ -69,14 +71,28 @@ function showWrapUnconfirmed(tx: BridgeTxDetails) {
   if (ongoing) setLastOngoingBridgeTx({ ...ongoing, showModal: true })
 }
 
-// Removes TU's record when it is this wrap's, whatever the tapplet is currently showing.
-async function removeStoredWrap(signer: TariL1Signer, paymentId: string) {
+// Removes TU's record only when it is this paymentId's, whatever the tapplet is currently showing.
+// Universe has no compare-and-remove, so this is a read then remove.
+export async function removeStoredWrap(signer: TariL1Signer | null | undefined, paymentId: string | undefined) {
+  if (!signer || !paymentId) return
   try {
     const stored = await signer.getOngoingBridgeTx()
     if (stored?.paymentId === paymentId) await signer.removeOngoingBridgeTx()
   } catch (error) {
-    console.error('[ TAPPLET-BRIDGE ] Could not remove the stored Ootle wrap: ', errorSummary(error))
+    console.error('[ TAPPLET-BRIDGE ] Could not remove the stored bridge tx: ', errorSummary(error))
   }
+}
+
+// First write of a new wrap's record. Refuses when TU holds another wrap's clientToken, which is that
+// wrap's only recovery path; a record without one (a finished bridge kept for display) may be replaced.
+export async function claimStoredWrap(signer: TariL1Signer, record: BridgeTxDetails): Promise<boolean> {
+  const stored = await signer.getOngoingBridgeTx()
+  if (stored?.clientToken && stored.paymentId !== record.paymentId) {
+    console.warn('[ TAPPLET-BRIDGE ] TU holds another unconfirmed Ootle wrap; not starting this one')
+    return false
+  }
+  await signer.setOngoingBridgeTx(record)
+  return true
 }
 
 // Writes TU's record only when the slot is empty or already holds this wrap, so another bridge's
@@ -117,7 +133,8 @@ export const useBridgeOotleToEvm = () => {
   const finishOotleWrap = async (tx: BridgeTxDetails, asset?: AssetConfig, attempts = WAIT_ATTEMPTS) => {
     if (!signer || !tx.clientToken || !tx.ootleTransactionId) return
 
-    lockOotleWrapInFlight(tx.paymentId)
+    // Another wrap is between deposit and tokens-sent; it owns the lock and TU's slot.
+    if (!lockOotleWrapInFlight(tx.paymentId)) return
     try {
       await waitAndConfirm(tx, asset, attempts)
     } finally {
@@ -204,14 +221,42 @@ export const useBridgeOotleToEvm = () => {
     if (!ootleAccount || !signer) return
     const t = i18next.getFixedT(null, 'main')
 
-    const unfinished = await getUnfinishedOotleWrapError(signer)
-    if (unfinished) {
-      setBridgeError(t(unfinished))
+    if (!isAddress(evmAddress)) {
+      setBridgeError(t('invalid_evm_address'))
       return
     }
 
-    if (!isAddress(evmAddress)) {
-      setBridgeError(t('invalid_evm_address'))
+    // Claimed before the first await and held to the end, so a second start can't pass the checks
+    // below while this one is creating or storing its wrap.
+    const startId = claimBridgeStart()
+    if (!startId) {
+      setBridgeError(t('bridge_start_in_progress'))
+      return
+    }
+    try {
+      await startOotleWrap({ amount, evmAddress, amountAfterFee, asset })
+    } finally {
+      releaseBridgeStart(startId)
+    }
+  }
+
+  const startOotleWrap = async ({
+    amount,
+    evmAddress,
+    amountAfterFee,
+    asset,
+  }: {
+    amount: string
+    evmAddress: string
+    amountAfterFee: string
+    asset: AssetConfig
+  }) => {
+    if (!ootleAccount || !signer) return
+    const t = i18next.getFixedT(null, 'main')
+
+    const unfinished = await getUnfinishedOotleWrapError(signer)
+    if (unfinished) {
+      setBridgeError(t(unfinished))
       return
     }
 
@@ -238,20 +283,6 @@ export const useBridgeOotleToEvm = () => {
     }
     const { paymentId, clientToken } = created
 
-    // set ongoing to immediately display wrap modal
-    setLastOngoingBridgeTx({
-      destinationAddress: evmAddress,
-      tokenAmount,
-      amountAfterFee: parseWxtmTokenAmount(amountAfterFee),
-      status: UserTransactionDTO.status.PENDING,
-      createdAt: new Date().toISOString(),
-      paymentId,
-      showModal: true,
-      type: 'wrap',
-      ootleChainId: asset.chainId,
-    })
-    console.debug('[ TAPPLET-BRIDGE ] created Ootle wrap with id: ', paymentId)
-
     const tx: BridgeTxDetails = {
       amount,
       amountToReceive: amountAfterFee,
@@ -262,12 +293,36 @@ export const useBridgeOotleToEvm = () => {
       clientToken,
     }
 
-    // Locked from before the record is stored until the wait takes over, so no other bridge starts.
-    lockOotleWrapInFlight(paymentId)
+    // Held from before the record is stored until the wait takes over, so no other bridge starts.
+    // Fails only if a resumed wrap took it meanwhile; nothing has been sent, so this one just stops.
+    if (!lockOotleWrapInFlight(paymentId)) {
+      setBridgeError(t('ootle_wrap_unfinished'))
+      showWrapFailed(tx)
+      return
+    }
     try {
+      // set ongoing to immediately display wrap modal
+      setLastOngoingBridgeTx({
+        destinationAddress: evmAddress,
+        tokenAmount,
+        amountAfterFee: parseWxtmTokenAmount(amountAfterFee),
+        status: UserTransactionDTO.status.PENDING,
+        createdAt: new Date().toISOString(),
+        paymentId,
+        showModal: true,
+        type: 'wrap',
+        ootleChainId: asset.chainId,
+      })
+      console.debug('[ TAPPLET-BRIDGE ] created Ootle wrap with id: ', paymentId)
+
       // Stored in TU before the deposit, so the clientToken survives whatever happens to the send.
+      // Never replaces another wrap's clientToken.
       try {
-        await signer.setOngoingBridgeTx(tx)
+        if (!(await claimStoredWrap(signer, tx))) {
+          setBridgeError(t('ootle_wrap_unfinished'))
+          showWrapFailed(tx)
+          return
+        }
       } catch (error) {
         console.error('[ TAPPLET-BRIDGE ] Could not store the Ootle wrap: ', errorSummary(error))
         showWrapFailed(tx)
