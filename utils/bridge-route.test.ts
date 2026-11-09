@@ -36,8 +36,8 @@ const { WTARI_DEPLOYMENTS } = await vi.hoisted(async () => {
   return { WTARI_DEPLOYMENTS: deployments }
 })
 
-vi.mock('@tari-project/wxtm-bridge-contracts/deployments', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@tari-project/wxtm-bridge-contracts/deployments')>()
+vi.mock('@/contracts/deployments', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@/contracts/deployments')>()
   return {
     ...actual,
     getDeployments: (chainId: number) => ({ ...actual.getDeployments(chainId), ...WTARI_DEPLOYMENTS[chainId] }),

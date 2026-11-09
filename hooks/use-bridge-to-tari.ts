@@ -5,7 +5,7 @@ import {
   TokensUnwrappedService,
   UserTransactionDTO,
 } from '@tari-project/wxtm-bridge-backend-api'
-import { WXTM__factory, WXTMBridge__factory } from '@tari-project/wxtm-bridge-contracts/typechain/factories/contracts'
+import { wTARIAbi, wTARIBridgeAbi, wXTMAbi, wXTMBridgeAbi } from '@/contracts/abis'
 import { useConfig, useConnection, useReadContract, useSwitchChain, useWriteContract } from 'wagmi'
 import { getWalletClient } from 'wagmi/actions'
 import i18next from 'i18next'
@@ -15,12 +15,12 @@ import useAppStore from '@/store/app'
 import { AssetConfig, amountAfterFee as getAmountAfterFee, evmToTariUnits } from '@/utils/bridge-route'
 import { isOotleAddress } from '@/utils/ootle-address'
 
-// wTARI and wTARIBridge expose the same eip712Domain and bridgeToTariWithAuthorization as wXTM and wXTMBridge.
-const tokenAbi = WXTM__factory.abi
-const bridgeAbi = WXTMBridge__factory.abi
-
 export const useBridgeToTari = (ethAddress: `0x${string}`, asset: AssetConfig) => {
   const { chainId, tokenAddress, bridgeAddress } = asset
+  // eip712Domain and bridgeToTariWithAuthorization are identical across the pairs (contracts/abis.test.ts);
+  // the wTARI ABIs also decode wTARIBridge-only errors such as InvalidTargetTariAddress.
+  const tokenAbi = asset.kind === 'ootle' ? wTARIAbi : wXTMAbi
+  const bridgeAbi = asset.kind === 'ootle' ? wTARIBridgeAbi : wXTMBridgeAbi
   const wagmiConfig = useConfig()
   const { chainId: connectedChainId } = useConnection()
   const { switchChainAsync } = useSwitchChain()

@@ -1,4 +1,4 @@
-import { getDeployments, WagmiAddress } from '@tari-project/wxtm-bridge-contracts/deployments'
+import { getDeployments, WagmiAddress } from '@/contracts/deployments'
 import { GetOotleWrapTokenParamsRespDTO, OotlePublicEvmChainDTO } from '@tari-project/wxtm-bridge-backend-api'
 import { mainnet, sepolia } from 'viem/chains'
 import type { Network } from '@/components/network-box'

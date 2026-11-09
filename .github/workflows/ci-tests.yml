@@ -48,7 +48,7 @@ jobs:
 
       - name: No Base chain id literals outside utils/evm-chains.ts
         run: |
-          if git grep -InE '8453|84532' -- ':!utils/evm-chains.ts' ':!yarn.lock' ':!package-lock.json' ':!.github/workflows/ci-tests.yml'; then
+          if git grep -InE '8453|84532' -- ':!utils/evm-chains.ts' ':!contracts/deployments.json' ':!yarn.lock' ':!package-lock.json' ':!.github/workflows/ci-tests.yml'; then
             echo "Chain ids belong in utils/evm-chains.ts"
             exit 1
           fi

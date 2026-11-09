@@ -8,3 +8,14 @@ If you want to learn more and get to know the Tari Bridge better, please **[visi
 
 ## Environment
 See `.env.example`. `NEXT_PUBLIC_ALLOW_UNIVERSE_DEV_ORIGIN=true` lets a Tari Universe dev build (`pnpm tauri dev`, origin `http://localhost:1420`) frame the bridge; it is read at build time and must not be set for release builds.
+
+## Contract addresses and ABIs
+
+`contracts/abis.ts` and `contracts/deployments.json` are vendored from `tari-project/wxtm-bridge-contracts` (the source commit is recorded in both files). They are the trust anchor that backend chain parameters are checked against in `utils/bridge-route.ts`. To update them, compile the contracts repo and run:
+
+```sh
+(cd ../wxtm-bridge-contracts && npx hardhat compile)
+node scripts/sync-contracts.mjs ../wxtm-bridge-contracts
+```
+
+Review the address diff against the contracts deployment record before committing.

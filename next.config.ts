@@ -1,7 +1,7 @@
 import type { NextConfig } from 'next'
 
 const nextConfig: NextConfig = {
-  transpilePackages: ['@tari-project/wxtm-bridge-contracts', '@tari-project/wxtm-bridge-backend-api'],
+  transpilePackages: ['@tari-project/wxtm-bridge-backend-api'],
   serverExternalPackages: ['lokijs', 'encoding', 'wagmi'],
   images: {
     loaderFile: './utils/imageLoader.ts',

@@ -1,5 +1,5 @@
 import useAppStore from '@/store/app'
-import { getDeployments } from '@tari-project/wxtm-bridge-contracts/deployments'
+import { getDeployments } from '@/contracts/deployments'
 import { mainnet, sepolia } from 'viem/chains'
 import { getExplorerUrl } from './bridge-route'
 
