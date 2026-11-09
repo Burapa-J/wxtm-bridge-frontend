@@ -8,7 +8,7 @@ import { OotleWrapTokenService } from '@tari-project/wxtm-bridge-backend-api'
 import { AssetConfig, getOotleAssets } from '@/utils/bridge-route'
 import { setOotleConfig, setOotleUnavailable } from './bridge'
 import useAppStore from './app'
-import { isOotleParamsForNetwork } from '@/utils/ootle-address'
+import { isOotleAddress, isOotleParamsForNetwork } from '@/utils/ootle-address'
 
 interface TariL1WalletStoreState {
   tariAccount?: AccountData
@@ -171,6 +171,12 @@ export const loadOotleBridge = async () => {
 
   try {
     const ootleAccount = await getOotleAccount()
+    // The account address is the unwrap destination: validate Universe's reply once at the boundary.
+    const network = useAppStore.getState().network
+    if (ootleAccount.network.toLowerCase() !== network.toLowerCase() || !isOotleAddress(ootleAccount.address, network)) {
+      console.error(`[ TAPPLET-BRIDGE ] Universe's Ootle account is not a valid address on ${network}; hiding Ootle`)
+      return
+    }
     useTariAccountStore.setState({ ootleAccount })
   } catch (error) {
     if (error instanceof OotleSignerError && error.code === 'l2_unavailable') {

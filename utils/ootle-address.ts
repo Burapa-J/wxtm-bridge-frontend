@@ -1,7 +1,6 @@
-import { bech32m } from 'bech32'
-
-// Ootle addresses run well past bech32's 90-character default limit.
-const MAX_ADDRESS_LENGTH = 1023
+import { RistrettoPoint } from '@noble/curves/ed25519'
+// The helper module only: the package root also pulls in its node clients.
+import { decodeOotleAddress } from '@tari-project/ootle-ts-bindings/dist/helpers/ootleAddress'
 
 // The bech32m prefix for the Universe network from getNetwork(); undefined where Ootle has none.
 export function getOotleAddressPrefix(network: string | undefined): string | undefined {
@@ -22,11 +21,26 @@ export function isOotleParamsForNetwork(
   return isOotleAddress(coldAccountAddress, network)
 }
 
-export function isOotleAddress(address: string, network: string | undefined): boolean {
-  const prefix = getOotleAddressPrefix(network)
-  if (!prefix) return false
+function isRistrettoPoint(hex: string): boolean {
   try {
-    return bech32m.decode(address, MAX_ADDRESS_LENGTH).prefix === prefix
+    RistrettoPoint.fromHex(hex)
+    return true
+  } catch {
+    return false
+  }
+}
+
+// A full Ootle address on Universe's network: decoded with the canonical Ootle decoder (the one the
+// processor uses), on that network, with account and view keys that are valid Ristretto255 points.
+// A checksum-valid address with a bad key would otherwise pass, and wTARI burned to it is never paid out.
+export function isOotleAddress(address: string, network: string | undefined): boolean {
+  const name = network?.toLowerCase()
+  if (!name || !getOotleAddressPrefix(name)) return false
+  try {
+    const decoded = decodeOotleAddress(address)
+    return (
+      decoded.network === name && isRistrettoPoint(decoded.accountPublicKey) && isRistrettoPoint(decoded.viewOnlyKey)
+    )
   } catch {
     return false
   }

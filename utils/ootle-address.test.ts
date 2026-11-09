@@ -2,12 +2,15 @@ import { describe, expect, it } from 'vitest'
 import { bech32, bech32m } from 'bech32'
 import { isOotleAddress, isOotleParamsForNetwork } from './ootle-address'
 
-// account key + view key
-const KEYS = new Uint8Array(64).fill(7)
+// account key + view key: the Ristretto255 basepoint and the identity, both valid points
+const BASEPOINT = 'e2f2ae0a6abc4e71a884a961c500515f58e30b6aa582dd8db6a65945e08d2d76'
+const KEYS = Uint8Array.from(Buffer.from(BASEPOINT + '00'.repeat(32), 'hex'))
 
-function encode(prefix: string): string {
-  return bech32m.encode(prefix, bech32m.toWords(KEYS), 1023)
+function encode(prefix: string, keys: Uint8Array = KEYS): string {
+  return bech32m.encode(prefix, bech32m.toWords(keys), 1023)
 }
+
+const withKeys = (account: string, view: string) => Uint8Array.from(Buffer.from(account + view, 'hex'))
 
 describe('isOotleAddress', () => {
   it('accepts otl_esm_ addresses on Esmeralda only', () => {
@@ -36,6 +39,26 @@ describe('isOotleAddress', () => {
     expect(isOotleAddress(bech32.encode('otl_esm_', bech32.toWords(KEYS), 1023), 'esmeralda')).toBe(false)
     expect(isOotleAddress('0x1234567890123456789012345678901234567890', 'esmeralda')).toBe(false)
     expect(isOotleAddress('', 'esmeralda')).toBe(false)
+  })
+
+  // C26: checksum and prefix are fine, the keys are not.
+  it('rejects a checksum-valid address whose keys are not Ristretto points', () => {
+    // the review's proof address: 64 0xff bytes
+    const allFf = 'otl_esm_1llllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllc4arh2e'
+    expect(bech32m.decode(allFf, 1023).prefix).toBe('otl_esm_')
+    expect(isOotleAddress(allFf, 'esmeralda')).toBe(false)
+    // non-canonical ("negative") encodings, in either key slot
+    expect(isOotleAddress(encode('otl_esm_', withKeys('07'.repeat(32), BASEPOINT)), 'esmeralda')).toBe(false)
+    expect(isOotleAddress(encode('otl_esm_', withKeys(BASEPOINT, '07'.repeat(32))), 'esmeralda')).toBe(false)
+  })
+
+  it('rejects a payload too short to hold both keys', () => {
+    expect(isOotleAddress(encode('otl_esm_', Uint8Array.from(Buffer.from(BASEPOINT, 'hex'))), 'esmeralda')).toBe(false)
+  })
+
+  it('accepts a valid address carrying a destination tag, like the processor', () => {
+    const tagged = new Uint8Array([...KEYS, ...new TextEncoder().encode('tag')])
+    expect(isOotleAddress(encode('otl_esm_', tagged), 'esmeralda')).toBe(true)
   })
 })
 

@@ -1509,6 +1509,13 @@
   dependencies:
     "@tanstack/query-core" "5.90.17"
 
+"@tari-project/ootle-ts-bindings@1.64.0":
+  version "1.64.0"
+  resolved "https://registry.yarnpkg.com/@tari-project/ootle-ts-bindings/-/ootle-ts-bindings-1.64.0.tgz#4a6b6013502405707ac825d41196d7b57f360e0d"
+  integrity sha512-3awIhEyBRTzqiFURuwGWqg0kfleK1KjNl6gqhZOY7/h8pHqRd2nI78bXTbgJxJTkbRL5cmcrgpBI3KNeBg5Jig==
+  dependencies:
+    bech32 "^2.0.0"
+
 "@tari-project/wxtm-bridge-backend-api@^0.1.71":
   version "0.1.71"
   resolved "https://registry.npmjs.org/@tari-project/wxtm-bridge-backend-api/-/wxtm-bridge-backend-api-0.1.71.tgz#d3b746fff8fb4ae202496f47ba828870a3ee75f7"
