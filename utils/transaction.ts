@@ -2,7 +2,7 @@ import { BridgeFees } from '@/hooks/use-bridge-fees'
 import { BridgeInfo } from '@/hooks/use-bridge-info'
 import { OngoingUserTransaction } from '@/types/tapplet'
 import { UserTransactionDTO, UserUnwrappedTransactionDTO } from '@tari-project/wxtm-bridge-backend-api'
-import { utils } from 'ethers'
+import { BigNumber, utils } from 'ethers'
 import i18n from 'i18next'
 
 // A finished-but-failed bridge: a wrap that timed out, or an unwrap the backend rejected (ERROR).
@@ -33,6 +33,71 @@ export function getTransactionAmount(tx: OngoingUserTransaction): {
   }
 }
 
+export function isOverHighBridgeThreshold(
+  tokenAmount: string | undefined,
+  decimals: number,
+  highThreshold: number | string,
+): boolean {
+  if (!tokenAmount) return false
+  try {
+    const parsedThreshold = utils.parseUnits(highThreshold.toString(), decimals)
+    return BigNumber.from(tokenAmount).gt(parsedThreshold)
+  } catch {
+    return false
+  }
+}
+
+export function resolveWrapModalState({
+  type,
+  amountAfterFeeProp,
+  transaction,
+  routeIsWrapping,
+  fallbackAmountAfterFee,
+}: {
+  type?: 'wrap' | 'unwrap'
+  amountAfterFeeProp?: string
+  transaction?: OngoingUserTransaction
+  routeIsWrapping: boolean
+  fallbackAmountAfterFee: string
+}): {
+  effectiveType: 'wrap' | 'unwrap'
+  amountAfterFeePending: string
+} {
+  const effectiveType = transaction?.type ?? type ?? (routeIsWrapping ? 'wrap' : 'unwrap')
+  const txDecimals = transaction ? getTransactionAmount(transaction).decimals : effectiveType === 'wrap' ? 6 : 18
+  const rawAmountAfterFee = amountAfterFeeProp || transaction?.amountAfterFee
+  const amountAfterFeePending = rawAmountAfterFee
+    ? parseFloat(utils.formatUnits(rawAmountAfterFee, txDecimals)).toPrecision()
+    : fallbackAmountAfterFee
+
+  return {
+    effectiveType,
+    amountAfterFeePending,
+  }
+}
+
+export function resolveFailedModalState({
+  historyType,
+  fromHistory,
+  paymentIdProp,
+  ongoingBridgeTx,
+  routeIsWrapping,
+}: {
+  historyType?: 'wrap' | 'unwrap'
+  fromHistory?: boolean
+  paymentIdProp?: string
+  ongoingBridgeTx?: Pick<OngoingUserTransaction, 'type' | 'paymentId'>
+  routeIsWrapping: boolean
+}): {
+  isWrapping: boolean
+  paymentId: string | undefined
+} {
+  const effectiveType = fromHistory ? historyType : (ongoingBridgeTx?.type ?? historyType)
+  const isWrapping = effectiveType ? effectiveType === 'wrap' : routeIsWrapping
+  const paymentId = fromHistory ? paymentIdProp : paymentIdProp || ongoingBridgeTx?.paymentId
+  return { isWrapping, paymentId }
+}
+
 export function getWrapModalTitle(
   bridgeInfo: BridgeInfo,
   feeData: BridgeFees,
@@ -54,13 +119,14 @@ export function getWrapModalTitle(
   const amount = parseFloat(utils.formatUnits(tokenAmount, decimals).toString()).toPrecision()
 
   const bridgingTime = feeData.isOverHighBridgeThreshold ? '24-72h' : '12h'
+  const effectiveType = type ?? tx.type
   const fromToken = bridgeInfo.fromToken
 
   switch (tx.status) {
     case UserTransactionDTO.status.PENDING:
       return {
         title: t('pending_title', {
-          action: type === 'wrap' ? t('wrapping') : t('unwrapping'),
+          action: effectiveType === 'wrap' ? t('wrapping') : t('unwrapping'),
           amount,
           fromToken,
         }),
@@ -68,20 +134,20 @@ export function getWrapModalTitle(
           amount: amountWithFee,
           toToken: bridgeInfo.toToken,
           bridgingTime,
-          direction: type === 'wrap' ? t('from') : t('to'),
+          direction: effectiveType === 'wrap' ? t('from') : t('to'),
         }),
       }
     case UserTransactionDTO.status.PROCESSING:
       return {
         title: t('processing_title'),
         subtext: t('processing_subtext', {
-          action: type === 'wrap' ? t('wrapped') : t('unwrapped'),
+          action: effectiveType === 'wrap' ? t('wrapped') : t('unwrapped'),
         }),
       }
     case UserTransactionDTO.status.SUCCESS:
       return {
         title: t('success_title', {
-          action: type === 'wrap' ? t('wrapped') : t('unwrapped'),
+          action: effectiveType === 'wrap' ? t('wrapped') : t('unwrapped'),
           amount,
           fromToken,
         }),

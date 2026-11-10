@@ -1,10 +1,9 @@
 import { config } from '@/config'
 import { useBridgeInfo } from '@/hooks/use-bridge-info'
 
-import { getTransactionAmount, getWrapModalTitle } from '@/utils/transaction'
+import { getWrapModalTitle, resolveWrapModalState } from '@/utils/transaction'
 import { truncateAddress } from '@/utils/truncate'
 import { openExternalLink } from '@/utils/universe'
-import { utils } from 'ethers'
 import Image from 'next/image'
 import React from 'react'
 import { useTranslation } from 'react-i18next'
@@ -32,33 +31,28 @@ export const WrapModal = ({
   const ongoingBridgeTx = useTariAccountStore((s) => s.ongoingBridgeTx)
   const { route } = useBridgeRoute()
 
+  const transaction = transactionStatus || ongoingBridgeTx
+  const { effectiveType, amountAfterFeePending } = resolveWrapModalState({
+    type,
+    amountAfterFeeProp,
+    transaction,
+    routeIsWrapping: route.isWrapping,
+    fallbackAmountAfterFee: feesData.amountAfterFee,
+  })
+
   const bridgeInfo = useBridgeInfo(
     {
       asset: asset ?? (ootleChainId !== undefined ? getUnlistedOotleLabels(ootleChainId) : route.asset),
-      isWrapping: type === 'wrap',
+      isWrapping: effectiveType === 'wrap',
     },
     ethereumAddress!,
     tariWalletAddress!,
   )
-  const amountAfterFeePending = amountAfterFeeProp
-    ? parseFloat(utils.formatUnits(amountAfterFeeProp, type === 'wrap' ? 6 : 18)).toPrecision()
-    : ongoingBridgeTx?.amountAfterFee
-      ? parseFloat(
-          utils.formatUnits(ongoingBridgeTx.amountAfterFee, getTransactionAmount(ongoingBridgeTx).decimals),
-        ).toPrecision()
-      : feesData.amountAfterFee
-
-  const destAddressRaw = destAddressProp || ongoingBridgeTx?.destinationAddress || bridgeInfo.destAddress
-  const destAddressPending = type === 'unwrap' ? truncateAddress(destAddressRaw || '', 15) : destAddressRaw
+  const destAddressRaw = destAddressProp || transaction?.destinationAddress || bridgeInfo.destAddress
+  const destAddressPending = effectiveType === 'unwrap' ? truncateAddress(destAddressRaw || '', 15) : destAddressRaw
 
   // Pass the current language to getModalTitle
-  const { title, subtext } = getWrapModalTitle(
-    bridgeInfo,
-    feesData,
-    transactionStatus || ongoingBridgeTx,
-    i18n.language,
-    type,
-  )
+  const { title, subtext } = getWrapModalTitle(bridgeInfo, feesData, transaction, i18n.language, effectiveType)
 
   return (
     <div className="w-full flex flex-col p-6">

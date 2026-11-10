@@ -2,8 +2,9 @@ import { FailedModal } from '@/components/modals/failed-modal'
 import { SuccessModal } from '@/components/modals/success-modal'
 import { WrapModal } from '@/components/modals/wrap-modal'
 import { getStatusInfo } from '@/components/transactions/helpers'
+import { config } from '@/config'
 import { BridgeFees } from '@/hooks/use-bridge-fees'
-import { getTransactionAmount } from '@/utils/transaction'
+import { getTransactionAmount, isOverHighBridgeThreshold } from '@/utils/transaction'
 import { getTransactionAsset } from '@/utils/bridge-route'
 import { useBridgeRoute } from '@/hooks/use-bridge-route'
 import { memo, useRef } from 'react'
@@ -17,13 +18,14 @@ const TransactionDetailsModal = memo(function TransactionDetailsModal({
   const { assets } = useBridgeRoute()
   const asset = getTransactionAsset(transaction.ootleChainId, assets)
   const statusInfo = getStatusInfo(transaction.status)
-  const { amount: tokenAmount } = getTransactionAmount(transaction)
+  const { amount: tokenAmount, decimals } = getTransactionAmount(transaction)
+  const highThreshold = asset?.highThreshold ?? config.HIGH_BRIDGE_THRESHOLD
 
   const feesData: BridgeFees = {
     feeAmount: transaction.feeAmount,
     amountAfterFee: transaction.amountAfterFee,
     feePercentage: 50,
-    isOverHighBridgeThreshold: false,
+    isOverHighBridgeThreshold: isOverHighBridgeThreshold(tokenAmount, decimals, highThreshold),
   }
 
   const renderModal = () => {

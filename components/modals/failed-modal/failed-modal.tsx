@@ -10,6 +10,7 @@ import { clearOotleWrapToResume, removeOngoingTransaction, useTariAccountStore }
 import { useBridgeRoute } from '@/hooks/use-bridge-route'
 import { keepOotleWrapCapability, removeStoredWrap } from '@/hooks/use-bridge-ootle-to-evm'
 import { getTransactionLabels } from '@/utils/bridge-route'
+import { resolveFailedModalState } from '@/utils/transaction'
 
 export const FailedModal = ({
   closeModalAction,
@@ -22,9 +23,16 @@ export const FailedModal = ({
   const bridgeError = useBridgeStore((s) => s.bridgeError)
   const unconfirmedPaymentId = useBridgeStore((s) => s.unconfirmedPaymentId)
   const { route } = useBridgeRoute()
-  const { isWrapping } = route
-  const labels = getTransactionLabels(asset, ootleChainId, route.asset)
   const ongoingBridgeTx = useTariAccountStore((s) => s.ongoingBridgeTx)
+  const detailedTx = useTariAccountStore((s) => s.detailedTx)
+  const { isWrapping, paymentId: displayPaymentId } = resolveFailedModalState({
+    historyType: detailedTx?.type,
+    fromHistory,
+    paymentIdProp,
+    ongoingBridgeTx,
+    routeIsWrapping: route.isWrapping,
+  })
+  const labels = getTransactionLabels(asset, ootleChainId, route.asset)
   const { t } = useTranslation('main', { useSuspense: false })
 
   const handleOnClick = useCallback(async () => {
@@ -65,7 +73,7 @@ export const FailedModal = ({
           </div>
           <div className="font-semibold text-lg mt-2">{t('something_went_wrong')}</div>
           <div className="font-normal text-xs mt-2 text-center px-3">
-            {bridgeError ||
+            {(!fromHistory && bridgeError) ||
               (isWrapping
                 ? t('wrap_failed_message', { tariToken: labels.tariToken })
                 : t('unwrap_failed_message', { evmToken: labels.evmToken, chain: labels.chainName }))}
@@ -74,10 +82,10 @@ export const FailedModal = ({
 
         {/* Section 1 */}
         <div className="flex flex-col my-4">
-          {isWrapping && (paymentIdProp || ongoingBridgeTx?.paymentId) ? (
+          {isWrapping && displayPaymentId ? (
             <div className="font-medium">
               <div className="text-xs text-gray-500">{t('transaction_id')}</div>
-              <div className="text-sm">{paymentIdProp || ongoingBridgeTx?.paymentId}</div>
+              <div className="text-sm">{displayPaymentId}</div>
             </div>
           ) : (
             <div></div>
