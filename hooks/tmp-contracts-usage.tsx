@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { getDeployments } from '@tari-project/wxtm-bridge-contracts/deployments'
+import { getDeployments } from '@/contracts/deployments'
 // import { WXTM__factory } from '@tari-project/wxtm-bridge-contracts/typechain/factories/contracts'
 // import { writeContract } from '@wagmi/core'
 // import { getConfig } from '@/utils/config'

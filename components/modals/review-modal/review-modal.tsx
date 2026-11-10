@@ -5,11 +5,10 @@ import { IoCloseOutline } from 'react-icons/io5'
 import { ReviewModalProps } from './review-modal.types'
 import { ModalButton } from '@/components/modals/modal-button'
 import { useBridgeInfo } from '@/hooks/use-bridge-info'
-import { config } from '@/config'
 import { truncateAddress } from '@/utils/truncate'
 import { useTranslation } from 'react-i18next'
-import { useBridgeStore } from '@/store/bridge'
 import { useConnection } from 'wagmi'
+import { useBridgeRoute } from '@/hooks/use-bridge-route'
 
 export const ReviewModal = ({
   closeModalAction,
@@ -22,11 +21,10 @@ export const ReviewModal = ({
   const { t } = useTranslation('main', { useSuspense: false })
   const { address: ethAddress } = useConnection()
   const { amountAfterFee, feeAmount, feePercentage, isOverHighBridgeThreshold } = feesData
-  const fromNetwork = useBridgeStore((s) => s.fromNetwork)
-  const toNetwork = useBridgeStore((s) => s.toNetwork)
+  const { from: fromNetwork, to: toNetwork, route } = useBridgeRoute()
 
   const { fromToken, toToken, destAddress, bridgeHandler } = useBridgeInfo(
-    fromNetwork,
+    route,
     ethAddress!,
     tariWalletAddress!,
     handleBridgeToEthereum,
@@ -92,8 +90,11 @@ export const ReviewModal = ({
           >
             <div className="space-y-[-10px]">
               <div className="font-medium text-sm" style={{ color: '#B35400' }}>
-                Bridging over <span className="font-bold">{config.HIGH_BRIDGE_THRESHOLD} XTM</span> may take up to
-                24-48h to complete due to extra verification.
+                Bridging over{' '}
+                <span className="font-bold">
+                  {route.asset.highThreshold} {route.asset.tariToken}
+                </span>{' '}
+                may take up to 24-48h to complete due to extra verification.
               </div>
             </div>
           </div>

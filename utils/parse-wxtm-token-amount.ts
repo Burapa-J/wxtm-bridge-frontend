@@ -36,6 +36,11 @@ export function parseToMaxAllowed(
   return num
 }
 
+// Compared in micro units, so a remaining limit of 0 (or under 1 XTM) still blocks.
+export function isOverDailyLimit(amount: string, limitMicro: string): boolean {
+  return BigInt(parseWxtmTokenAmount(amount)) > BigInt(limitMicro)
+}
+
 export const microXtmToXtm = (microXtm: string | bigint): number => {
   return Number(BigInt(microXtm) / BigInt(config.MICRO_XTM_PER_XTM))
 }

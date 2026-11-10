@@ -1,7 +1,8 @@
 import useAppStore from '@/store/app'
-import { createConfig, createStorage, cookieStorage, fallback, http } from 'wagmi'
-import { mainnet, baseSepolia, sepolia } from 'wagmi/chains'
+import { createConfig, createStorage, cookieStorage, fallback, http, Transport } from 'wagmi'
 import { walletConnect } from 'wagmi/connectors'
+import type { Chain } from 'viem'
+import { KNOWN_EVM_CHAINS } from './evm-chains'
 
 export function getConfig(id?: string) {
   const { walletConnectProjectId, ethereumNodes } = useAppStore.getState()
@@ -16,13 +17,15 @@ export function getConfig(id?: string) {
     return urls?.length ? fallback(urls.map((url) => http(url))) : http()
   }
 
+  const chains = Object.values(KNOWN_EVM_CHAINS) as [Chain, ...Chain[]]
+  const transports: Record<number, Transport> = {}
+  for (const chain of chains) {
+    transports[chain.id] = transportFor(chain.id)
+  }
+
   return createConfig({
-    chains: [mainnet, baseSepolia, sepolia],
-    transports: {
-      [mainnet.id]: transportFor(mainnet.id),
-      [sepolia.id]: transportFor(sepolia.id),
-      [baseSepolia.id]: transportFor(baseSepolia.id),
-    },
+    chains,
+    transports,
     connectors: [
       walletConnect({
         projectId: projectId,

@@ -11,13 +11,16 @@ import { WrapModal } from '@/components/modals/wrap-modal'
 import { FailedModal } from '../failed-modal'
 import { MainModalProps } from './main-modal.types'
 
-import { useTariAccountStore } from '@/store/account'
-import { setExceededDailyLimit, setUnwrapFailed, setUnwrapSuccess } from '@/store/bridge'
+import { setExceededDailyLimit, setUnwrapFailed, setUnwrapSuccess, useBridgeStore } from '@/store/bridge'
 import { useBridgeTransaction } from '@/hooks/use-bridge-transaction'
 import { useBridgeToEthereum } from '@/hooks/use-bridge-to-ethereum'
-import { DeployedChains } from '@tari-project/wxtm-bridge-contracts/deployments/index'
+import { useBridgeOotleToEvm } from '@/hooks/use-bridge-ootle-to-evm'
 import { useBridgeToTari } from '@/hooks/use-bridge-to-tari'
+import { useBridgeRoute } from '@/hooks/use-bridge-route'
+import { useTariAccountStore } from '@/store/account'
+import { getTransactionAsset } from '@/utils/bridge-route'
 import { setIsModalOpen, setModalStep } from '@/store/modal'
+import { errorSummary } from '@/utils/error-summary'
 
 const DAILY_LIMIT_ERROR = 'Daily wrap limit exceeded'
 const DAILY_LIMIT_ERROR_TYPE = 'Forbidden'
@@ -34,25 +37,33 @@ export const MainModal = ({
   type,
 }: MainModalProps) => {
   const modalRef = useRef<HTMLDivElement>(null)
-  const tariAccount = useTariAccountStore((s) => s.tariAccount)
-  const { address: ethAddress, chain, isConnected } = useConnection()
+  const { address: ethAddress, isConnected } = useConnection()
+  const { route, assets } = useBridgeRoute()
+  const { asset } = route
+  const ongoingBridgeTx = useTariAccountStore((s) => s.ongoingBridgeTx)
+  const ongoingAsset = ongoingBridgeTx ? getTransactionAsset(ongoingBridgeTx.ootleChainId, assets) : undefined
 
   const { getUserBackendBridgeTxs } = useBridgeTransaction()
   const { bridgeToEthereum } = useBridgeToEthereum()
+  const { bridgeOotleToEvm } = useBridgeOotleToEvm()
 
-  const chainId = (chain?.id ?? 1) as DeployedChains
-  const { bridgeToTari, isSuccess, isError, error, isPending } = useBridgeToTari(ethAddress || '0x', chainId)
+  const { bridgeToTari, isSuccess, isError, error, isPending } = useBridgeToTari(ethAddress || '0x', asset)
 
   const handleBridgeToEthereum = useCallback(() => {
     if (!amount || !ethAddress) {
       return
     }
 
-    bridgeToEthereum({
-      amount,
-      ethAddress: ethAddress,
-      amountAfterFee: feesData.amountAfterFee,
-    })
+    const bridge =
+      asset.kind === 'ootle'
+        ? bridgeOotleToEvm({ amount, evmAddress: ethAddress, amountAfterFee: feesData.amountAfterFee, asset })
+        : bridgeToEthereum({
+            amount,
+            ethAddress: ethAddress,
+            amountAfterFee: feesData.amountAfterFee,
+          })
+
+    bridge
       .then(async () => {
         await getUserBackendBridgeTxs()
         setExceededDailyLimit(false)
@@ -62,22 +73,27 @@ export const MainModal = ({
         const isLimitError =
           error?.message?.includes(DAILY_LIMIT_ERROR) || error?.message?.includes(DAILY_LIMIT_ERROR_TYPE)
         if (isLimitError) {
-          console.warn('[ TAPPLET-BRIDGE ] Bridge operation failed:', e)
+          console.warn('[ TAPPLET-BRIDGE ] Bridge operation failed:', errorSummary(e))
           setExceededDailyLimit(true)
           setIsModalOpen(false)
+        } else {
+          console.error('[ TAPPLET-BRIDGE ] Bridge operation failed:', errorSummary(e))
         }
       })
-  }, [amount, bridgeToEthereum, ethAddress, feesData.amountAfterFee, getUserBackendBridgeTxs])
+  }, [amount, asset, bridgeOotleToEvm, bridgeToEthereum, ethAddress, feesData.amountAfterFee, getUserBackendBridgeTxs])
 
   const handleBridgeToTari = async () => {
-    if (!amount || !ethAddress || !tariAccount?.address) {
+    if (!amount || !ethAddress || !tariWalletAddress) {
       return
     }
     console.debug(`[ TAPPLET-BRIDGE ] Initiating transaction...`)
     setModalStep(3)
-    const success = await bridgeToTari(amount, ethAddress, tariAccount.address)
+    const success = await bridgeToTari(amount, ethAddress, tariWalletAddress)
     if (success) {
       setUnwrapFailed(false)
+    } else if (useBridgeStore.getState().exceededDailyLimit) {
+      // as for wraps: close the modal and let the daily-limit banner explain
+      setIsModalOpen(false)
     } else {
       setUnwrapFailed(true)
     }
@@ -105,10 +121,20 @@ export const MainModal = ({
           tariWalletAddress={tariWalletAddress}
           ethereumAddress={ethereumAddress}
           type={type}
+          asset={ongoingAsset}
+          ootleChainId={ongoingBridgeTx?.ootleChainId}
         />
       )
 
-    if (failed) return <FailedModal closeModalAction={closeModalAction} paymentId={undefined} />
+    if (failed)
+      return (
+        <FailedModal
+          closeModalAction={closeModalAction}
+          paymentId={undefined}
+          asset={ongoingAsset}
+          ootleChainId={ongoingBridgeTx?.ootleChainId}
+        />
+      )
 
     if (!isConnected && step === 0) return <ConnectionModal closeModalAction={closeModalAction} />
     if (step === 1)
@@ -131,6 +157,8 @@ export const MainModal = ({
           ethereumAddress={ethereumAddress}
           feesData={feesData}
           type={type}
+          asset={ongoingAsset}
+          ootleChainId={ongoingBridgeTx?.ootleChainId}
         />
       )
     if (step === 3) return <InfoModal />

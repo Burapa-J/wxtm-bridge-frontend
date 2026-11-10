@@ -6,7 +6,9 @@ import Image from 'next/image'
 import { useConnection, useChainId, useDisconnect } from 'wagmi'
 import { truncateAddress } from '@/utils/truncate'
 import { NetworkSwitchModal } from '@/components/modals/network-switch-modal'
-import { chainsMap } from '@/utils/networksConfig'
+import { chainsMap, SupportedChain } from '@/utils/networksConfig'
+import { KNOWN_EVM_CHAINS } from '@/utils/evm-chains'
+import { setBridgeError, useBridgeStore } from '@/store/bridge'
 import { BridgeHistoryListItem } from '../transactions/BridgeListItem'
 
 import { useBridgeStatus } from '@/hooks/use-bridge-status'
@@ -21,7 +23,13 @@ export const Header = () => {
 
   const { isOffline } = useBridgeStatus()
   const { address, isConnected, chain } = useConnection()
-  const supportedChains = getSupportedChains()
+  const ootleAssets = useBridgeStore((s) => s.ootleAssets)
+  const supportedChains: SupportedChain[] = [...getSupportedChains()]
+  for (const asset of ootleAssets) {
+    if (!supportedChains.some((c) => c.id === asset.chainId)) {
+      supportedChains.push({ id: asset.chainId, name: asset.chainName.toUpperCase(), icon: '/eth.png' })
+    }
+  }
   const disconnect = useDisconnect()
   const chainId = useChainId()
 
@@ -45,6 +53,8 @@ export const Header = () => {
   }
   const handleConnectClick = () => {
     if (!isConnected) {
+      // a new flow starts; drop any error left from an earlier one
+      setBridgeError('')
       setModalStep(0)
       setIsModalOpen(true)
     }
@@ -86,7 +96,7 @@ export const Header = () => {
                   !isNetworkSupported ? 'text-red-600 font-medium hover:cursor-pointer' : ''
                 }`}
               >
-                {chainsMap[chainId]}
+                {chainsMap[chainId] ?? KNOWN_EVM_CHAINS[chainId]?.name.toUpperCase()}
                 {!isNetworkSupported && ' (Click to switch)'}
               </div>
             </div>

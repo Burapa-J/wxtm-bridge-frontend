@@ -4,11 +4,11 @@ import { TextField } from '@mui/material'
 
 import { BridgeInputProps } from './bridge-input.types'
 import { useBridgeInfo } from '@/hooks/use-bridge-info'
-import { config } from '@/config'
 
-export const BridgeInput = ({ fromNetwork, availableBalance, remainingDailyLimit }: BridgeInputProps) => {
+export const BridgeInput = ({ route, availableBalance, remainingDailyLimit }: BridgeInputProps) => {
   const [valueLength, setValueLength] = useState(5)
-  const { fromToken } = useBridgeInfo(fromNetwork)
+  const { fromToken } = useBridgeInfo(route)
+  const { minAmount, maxAmount, tariToken } = route.asset
   const {
     control,
     formState: { errors },
@@ -73,12 +73,12 @@ export const BridgeInput = ({ fromNetwork, availableBalance, remainingDailyLimit
       control={control}
       rules={{
         min: {
-          value: config.MIN_BRIDGE_AMOUNT,
-          message: `Min amount is ${config.MIN_BRIDGE_AMOUNT.toLocaleString()} ${fromToken}`,
+          value: minAmount,
+          message: `Min amount is ${minAmount.toLocaleString()} ${fromToken}`,
         },
         max: {
-          value: config.MAX_BRIDGE_AMOUNT,
-          message: `Max amount is ${config.MAX_BRIDGE_AMOUNT} ${fromToken}`,
+          value: maxAmount,
+          message: `Max amount is ${maxAmount} ${fromToken}`,
         },
         pattern: {
           value: /^\d+(\.\d{0,6})?$/,
@@ -92,14 +92,14 @@ export const BridgeInput = ({ fromNetwork, availableBalance, remainingDailyLimit
           if (isNaN(amount)) {
             return 'Amount must be a valid number'
           }
-          if (amount > config.MAX_BRIDGE_AMOUNT) {
-            return `Max amount is ${config.MAX_BRIDGE_AMOUNT} ${fromToken}`
+          if (amount > maxAmount) {
+            return `Max amount is ${maxAmount} ${fromToken}`
           }
           if (amount > availableBalance) {
             return `Not enough ${fromToken}`
           }
           if (remainingDailyLimit !== undefined && amount > remainingDailyLimit) {
-            return `Daily limit exceeded. Remaining: ${remainingDailyLimit.toLocaleString()} XTM`
+            return `Daily limit exceeded. Remaining: ${remainingDailyLimit.toLocaleString()} ${tariToken}`
           }
           return true
         },

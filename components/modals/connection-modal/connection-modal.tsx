@@ -4,11 +4,13 @@ import { useTranslation } from 'react-i18next'
 import { Connector, useConnect, useConnectors } from 'wagmi'
 import { IoCloseOutline } from 'react-icons/io5'
 import { ConnectionModalProps } from './connection-modal.types'
+import { useBridgeRoute } from '@/hooks/use-bridge-route'
 
 const ConnectionModal = ({ closeModalAction }: ConnectionModalProps) => {
   const connectors = useConnectors()
   const { mutateAsync: connect, status } = useConnect()
   const { t } = useTranslation('main', { useSuspense: false })
+  const { route } = useBridgeRoute()
 
   const loader = status === 'pending' && (
     <div className="flex space-x-1 animate-pulse">
@@ -73,7 +75,9 @@ const ConnectionModal = ({ closeModalAction }: ConnectionModalProps) => {
       <div className="mt-10 px-4">
         <div className="ml-1 flex flex-col">
           <h2 className="text-lg font-bold">{t('connect_wallet_title')}</h2>
-          <span className="text-sm font-bold text-gray-500 mt-1">{t('connect_wallet_subtitle')}</span>
+          <span className="text-sm font-bold text-gray-500 mt-1">
+            {t('connect_wallet_subtitle', { evmToken: route.asset.evmToken })}
+          </span>
           {connectorMarkup}
         </div>
       </div>

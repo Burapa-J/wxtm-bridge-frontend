@@ -32,6 +32,11 @@ export interface BridgeTxDetails {
   amountToReceive: string
   destinationAddress: string
   paymentId: string
+  // Set for Ootle wraps so a reload can finish the tokens-sent step. clientToken is a secret.
+  network?: 'Ootle'
+  chainId?: number
+  clientToken?: string
+  ootleTransactionId?: string
 }
 
 export interface BridgeEnvs {
@@ -41,7 +46,6 @@ export interface BridgeEnvs {
 
 export class TariL1Signer {
   public signerName = 'TariL1Signer'
-  private __id = 0
 
   public constructor(public params: TariL1SignerParameters) {
     const filterResizeEvent = function (event: MessageEvent) {
@@ -62,8 +66,8 @@ export class TariL1Signer {
   private async sendRequest<MethodName extends SignerMethodNames>(
     req: Omit<SignerRequest<MethodName>, 'id'>,
   ): Promise<SignerReturnType<MethodName>> {
-    const id = ++this.__id
-    return sendSignerCall(req, id)
+    const timeoutMs = req.methodName === 'sendOneSided' ? SIGNER_SEND_TIMEOUT_MS : undefined
+    return sendSignerCall(req.methodName, req.args, timeoutMs) as Promise<SignerReturnType<MethodName>>
   }
 
   /**
@@ -207,31 +211,42 @@ export class TariL1Signer {
   }
 }
 
-function sendSignerCall<MethodName extends SignerMethodNames>(
-  req: Omit<SignerRequest<MethodName>, 'id'>,
-  id: number,
-): Promise<SignerReturnType<MethodName>> {
-  return new Promise<SignerReturnType<MethodName>>((resolve, reject) => {
-    const event_ref = (resp: MessageEvent<SignerResponse<MethodName>>) => {
+// Every signer client shares this one postMessage channel. Ids are random so another frame can't guess
+// them, and only replies from Universe (the parent window) are accepted.
+// Universe didn't answer in time; the call may still have run there.
+export class SignerTimeoutError extends Error {}
+
+const SIGNER_CALL_TIMEOUT_MS = 60_000
+// Sends wait for the user to enter their PIN in Universe.
+export const SIGNER_SEND_TIMEOUT_MS = 10 * 60_000
+
+export function sendSignerCall(
+  methodName: string,
+  args: unknown[],
+  timeoutMs = SIGNER_CALL_TIMEOUT_MS,
+): Promise<unknown> {
+  const id = crypto.randomUUID()
+  return new Promise<unknown>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      window.removeEventListener('message', event_ref)
+      reject(new SignerTimeoutError(`Signer call ${methodName} timed out`))
+    }, timeoutMs)
+
+    const event_ref = (resp: MessageEvent<SignerResponse<SignerMethodNames>>) => {
+      if (resp.source !== window.parent) return
+      if (!resp.data || resp.data.id !== id || resp.data.type !== 'signer-call') return
+      clearTimeout(timer)
+      window.removeEventListener('message', event_ref)
       if (resp.data.resultError) {
-        window.removeEventListener('message', event_ref)
         reject(resp.data.resultError)
-      }
-      if (
-        resp &&
-        resp.data &&
-        resp.data.id &&
-        resp.data.id === id &&
-        resp.data.type === 'signer-call'
-      ) {
-        window.removeEventListener('message', event_ref)
+      } else {
         resolve(resp.data.result)
       }
     }
 
     window.addEventListener('message', event_ref, false)
 
-    window.parent.postMessage({ ...req, id, type: 'signer-call' }, '*')
+    window.parent.postMessage({ methodName, args, id, type: 'signer-call' }, '*')
   })
 }
 

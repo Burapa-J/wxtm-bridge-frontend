@@ -1,7 +1,7 @@
 import { config } from '@/config'
 import { useBridgeInfo } from '@/hooks/use-bridge-info'
 
-import { getWrapModalTitle } from '@/utils/transaction'
+import { getTransactionAmount, getWrapModalTitle } from '@/utils/transaction'
 import { truncateAddress } from '@/utils/truncate'
 import { openExternalLink } from '@/utils/universe'
 import { utils } from 'ethers'
@@ -11,8 +11,9 @@ import { useTranslation } from 'react-i18next'
 import { IoCloseOutline } from 'react-icons/io5'
 import { ModalButton } from '../modal-button'
 import { WrapModalProps } from './wrap-modal.types'
-import { useBridgeStore } from '@/store/bridge'
 import { useTariAccountStore } from '@/store/account'
+import { useBridgeRoute } from '@/hooks/use-bridge-route'
+import { getUnlistedOotleLabels } from '@/utils/bridge-route'
 
 /** @TODO Refactor and get rid of conditional display here create unwrap-modal and use it for unwrap txs */
 export const WrapModal = ({
@@ -24,16 +25,27 @@ export const WrapModal = ({
   destinationAddress: destAddressProp,
   transactionStatus,
   type,
+  asset,
+  ootleChainId,
 }: WrapModalProps) => {
   const { i18n, t } = useTranslation('main', { useSuspense: false })
   const ongoingBridgeTx = useTariAccountStore((s) => s.ongoingBridgeTx)
-  const fromNetwork = useBridgeStore((s) => s.fromNetwork)
+  const { route } = useBridgeRoute()
 
-  const bridgeInfo = useBridgeInfo(fromNetwork, ethereumAddress!, tariWalletAddress!)
+  const bridgeInfo = useBridgeInfo(
+    {
+      asset: asset ?? (ootleChainId !== undefined ? getUnlistedOotleLabels(ootleChainId) : route.asset),
+      isWrapping: type === 'wrap',
+    },
+    ethereumAddress!,
+    tariWalletAddress!,
+  )
   const amountAfterFeePending = amountAfterFeeProp
     ? parseFloat(utils.formatUnits(amountAfterFeeProp, type === 'wrap' ? 6 : 18)).toPrecision()
     : ongoingBridgeTx?.amountAfterFee
-      ? parseFloat(utils.formatUnits(ongoingBridgeTx.amountAfterFee, 6)).toPrecision()
+      ? parseFloat(
+          utils.formatUnits(ongoingBridgeTx.amountAfterFee, getTransactionAmount(ongoingBridgeTx).decimals),
+        ).toPrecision()
       : feesData.amountAfterFee
 
   const destAddressRaw = destAddressProp || ongoingBridgeTx?.destinationAddress || bridgeInfo.destAddress

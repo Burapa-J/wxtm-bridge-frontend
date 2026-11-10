@@ -60,6 +60,10 @@ export interface BridgeBaseItemProps {
   transactionHash?: string
   onClick?: () => void
   transactionType?: 'wrap' | 'unwrap'
+  // e.g. "wTARI · Base"
+  badge?: string
+  currency?: string
+  explorerUrl?: string
 }
 
 export interface BridgeHistoryListItemProps {
@@ -69,14 +73,20 @@ export interface BridgeHistoryListItemProps {
   setDetailedTx?: (item: CombinedBridgeTransaction | null) => void
 }
 
+// ootleChainId is set only for Ootle (TARI <-> wTARI) transactions.
 export interface BackendBridgeTransaction extends UserTransactionDTO {
   sourceAddress?: string
   mined_in_block_height?: number
+  ootleChainId?: number
+  // An Ootle wrap listed without its clientToken-gated details: the amount and destination fields
+  // are placeholders and must not be shown.
+  detailsHidden?: boolean
 }
 
 export interface BackendUnwrapTransaction extends UserUnwrappedTransactionDTO {
   sourceAddress?: string
   mined_in_block_height?: number
+  ootleChainId?: number
 }
 
 export type CombinedBridgeTransaction =

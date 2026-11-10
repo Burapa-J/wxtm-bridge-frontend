@@ -2,9 +2,12 @@ import React from 'react'
 import Image from 'next/image'
 
 import { Trans, useTranslation } from 'react-i18next'
+import { useBridgeRoute } from '@/hooks/use-bridge-route'
 
 export const InfoModal: React.FC = ({}) => {
   const { t } = useTranslation('main', { useSuspense: false })
+  // shown while signing an unwrap, so the selected route is the one in progress
+  const { evmToken } = useBridgeRoute().route.asset
 
   return (
     <div className="w-full flex flex-col p-6">
@@ -23,6 +26,7 @@ export const InfoModal: React.FC = ({}) => {
           <div className="font-normal text-xs mt-2 text-center px-3">
             <Trans
               i18nKey="unwrap_info_message"
+              values={{ evmToken }}
               components={{ bold: <span className="font-bold" /> }}
             />
           </div>

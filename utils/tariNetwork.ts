@@ -1,19 +1,21 @@
 import useAppStore from '@/store/app'
+import { getDeployments } from '@/contracts/deployments'
+import { mainnet, sepolia } from 'viem/chains'
+import { getExplorerUrl } from './bridge-route'
 
-export function getEtherscanBaseUrl(): string {
-  const bridgeAPI = useAppStore.getState().bridgeAPI
-
-  const isTestnet = bridgeAPI.toLowerCase().includes('staging')
-
-  return isTestnet ? 'https://sepolia.etherscan.io' : 'https://etherscan.io'
+// wXTM listings carry no chainId, so the explorer follows the Universe network.
+function getWxtmChainId(): number {
+  return useAppStore.getState().isMainNet ? mainnet.id : sepolia.id
 }
 
-export function buildEtherscanLink(transactionHash?: string): string {
-  const baseUrl = getEtherscanBaseUrl()
+export function getEtherscanBaseUrl(): string {
+  return getExplorerUrl(getWxtmChainId())
+}
 
+export function buildEtherscanLink(transactionHash?: string, explorerUrl = getEtherscanBaseUrl()): string {
   if (transactionHash) {
-    return `${baseUrl}/tx/${transactionHash}`
+    return `${explorerUrl}/tx/${transactionHash}`
   }
 
-  return `https://etherscan.io/address/0xfD36fA88bb3feA8D1264fc89d70723b6a2B56958`
+  return `${explorerUrl}/address/${getDeployments(getWxtmChainId()).wXTM}`
 }

@@ -1,28 +1,35 @@
-import { useWalletClient } from 'wagmi'
+import { useConfig } from 'wagmi'
+import { getConnection, getWalletClient, switchChain } from 'wagmi/actions'
+import { AssetConfig } from '@/utils/bridge-route'
 
 export const useWalletUtils = () => {
-  const { data: walletClient } = useWalletClient()
-  const addXtmToWalletAction = async () => {
-    try {
-      return walletClient?.request({
-        method: 'wallet_watchAsset',
-        params: {
-          type: 'ERC20',
-          options: {
-            address: '0xfD36fA88bb3feA8D1264fc89d70723b6a2B56958',
-            symbol: 'wXTM',
-            decimals: 18,
-            image: 'https://tari.com/favicon.png?v=1',
-          },
-        },
-      })
-    } catch (error) {
-      console.error('Failed to ask wallet to watch asset:', error)
-      return false
+  const config = useConfig()
+
+  // Reads the wallet when called, so it is current even after a long wait.
+  const isWalletOnChain = (chainId: number) => getConnection(config).chainId === chainId
+
+  // Rejects when the wallet refuses the chain switch or the request.
+  const addTokenToWalletAction = async (asset: AssetConfig, switchToAssetChain = false) => {
+    if (switchToAssetChain && !isWalletOnChain(asset.chainId)) {
+      await switchChain(config, { chainId: asset.chainId })
     }
+    const walletClient = await getWalletClient(config)
+    return walletClient.request({
+      method: 'wallet_watchAsset',
+      params: {
+        type: 'ERC20',
+        options: {
+          address: asset.tokenAddress,
+          symbol: asset.evmToken,
+          decimals: asset.evmDecimals,
+          image: 'https://tari.com/favicon.png?v=1',
+        },
+      },
+    })
   }
 
   return {
-    addXtmToWalletAction,
+    addTokenToWalletAction,
+    isWalletOnChain,
   }
 }

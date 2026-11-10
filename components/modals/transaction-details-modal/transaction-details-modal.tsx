@@ -4,6 +4,8 @@ import { WrapModal } from '@/components/modals/wrap-modal'
 import { getStatusInfo } from '@/components/transactions/helpers'
 import { BridgeFees } from '@/hooks/use-bridge-fees'
 import { getTransactionAmount } from '@/utils/transaction'
+import { getTransactionAsset } from '@/utils/bridge-route'
+import { useBridgeRoute } from '@/hooks/use-bridge-route'
 import { memo, useRef } from 'react'
 import { TransactionDetailsModalProps } from './transaction-details-modal.types'
 
@@ -12,6 +14,8 @@ const TransactionDetailsModal = memo(function TransactionDetailsModal({
   closeModalAction,
 }: TransactionDetailsModalProps) {
   const modalRef = useRef<HTMLDivElement>(null)
+  const { assets } = useBridgeRoute()
+  const asset = getTransactionAsset(transaction.ootleChainId, assets)
   const statusInfo = getStatusInfo(transaction.status)
   const { amount: tokenAmount } = getTransactionAmount(transaction)
 
@@ -35,6 +39,8 @@ const TransactionDetailsModal = memo(function TransactionDetailsModal({
             destinationAddress={transaction.destinationAddress}
             transactionStatus={transaction}
             type={transaction.type}
+            asset={asset}
+            ootleChainId={transaction.ootleChainId}
           />
         )
 
@@ -47,11 +53,23 @@ const TransactionDetailsModal = memo(function TransactionDetailsModal({
             ethereumAddress={transaction.destinationAddress}
             detailedTx={transaction}
             type={transaction.type}
+            asset={asset}
+            ootleChainId={transaction.ootleChainId}
           />
         )
 
       case 'timeout':
-        return <FailedModal closeModalAction={closeModalAction} paymentId={transaction.paymentId} />
+      // a rejected unwrap
+      case 'error':
+        return (
+          <FailedModal
+            closeModalAction={closeModalAction}
+            paymentId={transaction.paymentId}
+            fromHistory
+            asset={asset}
+            ootleChainId={transaction.ootleChainId}
+          />
+        )
 
       default:
         return <></>

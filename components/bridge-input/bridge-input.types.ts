@@ -1,11 +1,11 @@
-import { Network } from '@/components/network-box'
+import { BridgeRoute } from '@/utils/bridge-route'
 
 export type BridgeFormValues = {
   amount: string
 }
 
 export type BridgeInputProps = {
-  fromNetwork: Network
+  route: BridgeRoute
   availableBalance: number
   remainingDailyLimit?: number
 }

@@ -24,7 +24,7 @@ permissions:
 
 env:
   NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  NODE_VERSION: 20.18.0
+  NODE_VERSION: 22
   TS_FILENAME: "bridge"
 
 jobs:
@@ -50,8 +50,18 @@ jobs:
           yarn --frozen-lockfile
 
       - name: Build
+        env:
+          # release builds never allow the Universe dev-server origin
+          NEXT_PUBLIC_ALLOW_UNIVERSE_DEV_ORIGIN: 'false'
         run: |
           npm run build
+
+      - name: Check no dev-server origin in the build
+        run: |
+          if grep -rq 'localhost:1420' out; then
+            echo "out/ allows the Universe dev-server origin"
+            exit 1
+          fi
 
       - name: Artifact upload for Archive
         uses: actions/upload-artifact@v5
