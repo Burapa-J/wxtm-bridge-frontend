@@ -1,7 +1,7 @@
 import { config } from '@/config'
 import { useBridgeInfo } from '@/hooks/use-bridge-info'
 
-import { getWrapModalTitle } from '@/utils/transaction'
+import { getTransactionAmount, getWrapModalTitle } from '@/utils/transaction'
 import { truncateAddress } from '@/utils/truncate'
 import { openExternalLink } from '@/utils/universe'
 import { utils } from 'ethers'
@@ -43,7 +43,9 @@ export const WrapModal = ({
   const amountAfterFeePending = amountAfterFeeProp
     ? parseFloat(utils.formatUnits(amountAfterFeeProp, type === 'wrap' ? 6 : 18)).toPrecision()
     : ongoingBridgeTx?.amountAfterFee
-      ? parseFloat(utils.formatUnits(ongoingBridgeTx.amountAfterFee, 6)).toPrecision()
+      ? parseFloat(
+          utils.formatUnits(ongoingBridgeTx.amountAfterFee, getTransactionAmount(ongoingBridgeTx).decimals),
+        ).toPrecision()
       : feesData.amountAfterFee
 
   const destAddressRaw = destAddressProp || ongoingBridgeTx?.destinationAddress || bridgeInfo.destAddress

@@ -225,12 +225,16 @@ const BridgeHistoryListItem = memo(function ListItem({
 
   const ref = useRef<HTMLDivElement>(null)
 
+  // An Ootle wrap listed without its lookup details shows chain, time and status only.
+  const detailsHidden = item.type === 'wrap' && item.detailsHidden === true
   const { amount: tokenAmount, decimals } = getTransactionAmount(item)
   // Convert to XTM base units (6 decimals) for consistent formatting
   const normalizedAmount = (Number(tokenAmount) / Math.pow(10, decimals)) * Math.pow(10, 6)
-  const earningsFormatted = hideWalletBalance
-    ? `***`
-    : formatNumber(normalizedAmount, FormatPreset.XTM_COMPACT).toLowerCase()
+  const earningsFormatted = detailsHidden
+    ? '—'
+    : hideWalletBalance
+      ? `***`
+      : formatNumber(normalizedAmount, FormatPreset.XTM_COMPACT).toLowerCase()
   const time = formatTimeStamp(getTimestampFromTransaction(item))
 
   const ootleChainId = item.ootleChainId
@@ -260,9 +264,9 @@ const BridgeHistoryListItem = memo(function ListItem({
       time={time}
       value={earningsFormatted}
       status={item?.status}
-      address={item?.sourceAddress || item?.destinationAddress}
+      address={detailsHidden ? undefined : item?.sourceAddress || item?.destinationAddress}
       transactionHash={item?.transactionHash}
-      onClick={handleItemClick}
+      onClick={detailsHidden ? undefined : handleItemClick}
       transactionType={item.type}
       badge={`${evmToken} · ${chainName}`}
       currency={tariToken}
@@ -275,7 +279,7 @@ const BridgeHistoryListItem = memo(function ListItem({
       value={earningsFormatted}
       status={item?.status}
       chip={itemIsNew ? t('new') : ''}
-      onClick={handleItemClick}
+      onClick={detailsHidden ? undefined : handleItemClick}
       transactionType={item.type}
       currency={tariToken}
     />

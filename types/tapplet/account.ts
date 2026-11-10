@@ -19,12 +19,12 @@ export interface PendingBridgeTx {
   paymentId: string
 }
 
+// Discriminated by `type`, never by which amount fields happen to be present.
 export type OngoingUserTransaction = (
-  | Omit<UserTransactionDTO, 'feeAmount'>
-  | Omit<UserUnwrappedTransactionDTO, 'feeAmount'>
+  | (Omit<UserTransactionDTO, 'feeAmount'> & { type: 'wrap' })
+  | (Omit<UserUnwrappedTransactionDTO, 'feeAmount'> & { type: 'unwrap' })
 ) & {
   showModal?: boolean
-  type: 'wrap' | 'unwrap'
   // set only for Ootle (TARI <-> wTARI) transactions
   ootleChainId?: number
 }

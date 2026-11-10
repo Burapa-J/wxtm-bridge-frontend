@@ -1,16 +1,24 @@
 import { BridgeFees } from '@/hooks/use-bridge-fees'
 import { BridgeInfo } from '@/hooks/use-bridge-info'
 import { OngoingUserTransaction } from '@/types/tapplet'
-import { UserTransactionDTO } from '@tari-project/wxtm-bridge-backend-api'
+import { UserTransactionDTO, UserUnwrappedTransactionDTO } from '@tari-project/wxtm-bridge-backend-api'
 import { utils } from 'ethers'
 import i18n from 'i18next'
+
+// A finished-but-failed bridge: a wrap that timed out, or an unwrap the backend rejected (ERROR).
+export function isFailedTransaction(tx: Pick<OngoingUserTransaction, 'type' | 'status'> | undefined): boolean {
+  if (!tx) return false
+  return tx.type === 'wrap'
+    ? tx.status === UserTransactionDTO.status.TIMEOUT
+    : tx.status === UserUnwrappedTransactionDTO.status.ERROR
+}
 
 export function getTransactionAmount(tx: OngoingUserTransaction): {
   amount: string
   amountAfterFee: string
   decimals: number
 } {
-  if ('tokenAmount' in tx) {
+  if (tx.type === 'wrap') {
     return {
       amount: tx.tokenAmount,
       amountAfterFee: tx.amountAfterFee,
@@ -40,18 +48,10 @@ export function getWrapModalTitle(
       subtext: ``,
     }
 
-  const {
-    amount: tokenAmount,
-    decimals,
-    amountAfterFee,
-  } = getTransactionAmount(tx)
-  const amountWithFee = parseFloat(
-    utils.formatUnits(amountAfterFee, decimals).toString(),
-  ).toPrecision()
+  const { amount: tokenAmount, decimals, amountAfterFee } = getTransactionAmount(tx)
+  const amountWithFee = parseFloat(utils.formatUnits(amountAfterFee, decimals).toString()).toPrecision()
 
-  const amount = parseFloat(
-    utils.formatUnits(tokenAmount, decimals).toString(),
-  ).toPrecision()
+  const amount = parseFloat(utils.formatUnits(tokenAmount, decimals).toString()).toPrecision()
 
   const bridgingTime = feeData.isOverHighBridgeThreshold ? '24-72h' : '12h'
   const fromToken = bridgeInfo.fromToken

@@ -59,6 +59,8 @@ const TransactionDetailsModal = memo(function TransactionDetailsModal({
         )
 
       case 'timeout':
+      // a rejected unwrap
+      case 'error':
         return (
           <FailedModal
             closeModalAction={closeModalAction}

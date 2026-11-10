@@ -15,6 +15,7 @@ import { useBridgeToEthereum } from '@/hooks/use-bridge-to-ethereum'
 import { useBridgeTransaction } from '@/hooks/use-bridge-transaction'
 import { clearOotleWrapToResume, setDetailedTx, setLastOngoingBridgeTx, useTariAccountStore } from '@/store/account'
 import { UserTransactionDTO } from '@tari-project/wxtm-bridge-backend-api'
+import { isFailedTransaction } from '@/utils/transaction'
 import { FooterText } from '@/components/main/footer-text'
 import { setBridgeError, setUnwrapFailed, useBridgeStore } from '@/store/bridge'
 import { useFetchDailyLimit } from '@/hooks/use-fetch-daily-limit'
@@ -62,8 +63,8 @@ export default function Home() {
   // Prevent main modal from showing when transaction details modal is active
   const showModalDetailedTx = !!detailedTx
   const showModalOngoingTx = ongoingBridgeTx && ongoingBridgeTx.showModal
-  const isFailed =
-    ongoingBridgeTx?.status === UserTransactionDTO.status.TIMEOUT || isUnwrappingFailed || bridgeError !== ''
+  // A rejected unwrap arrives as ERROR and ends the pending state like a timed-out wrap.
+  const isFailed = isFailedTransaction(ongoingBridgeTx) || isUnwrappingFailed || bridgeError !== ''
   const isWrapSuccess = ongoingBridgeTx?.status === UserTransactionDTO.status.SUCCESS
 
   const decimals = isWrapping ? asset.tariDecimals : asset.evmDecimals
@@ -117,7 +118,11 @@ export default function Home() {
     if (isModalOpen && modalStep === 0 && isConnected) {
       setIsModalOpen(false)
       setModalStep(1)
-    } else if (!showModalDetailedTx && showModalOngoingTx && (unwrapSuccess || ongoingBridgeTx.type === 'wrap')) {
+    } else if (
+      !showModalDetailedTx &&
+      showModalOngoingTx &&
+      (unwrapSuccess || ongoingBridgeTx.type === 'wrap' || isFailedTransaction(ongoingBridgeTx))
+    ) {
       setModalStep(2)
       setIsModalOpen(true)
     } else if (showModalDetailedTx && isModalOpen) {

@@ -3,7 +3,7 @@ import { isOverDailyLimit } from '@/utils/parse-wxtm-token-amount'
 import {
   OotleTokensUnwrappedService,
   TokensUnwrappedService,
-  UserTransactionDTO,
+  UserUnwrappedTransactionDTO,
 } from '@tari-project/wxtm-bridge-backend-api'
 import { wTARIAbi, wTARIBridgeAbi, wXTMAbi, wXTMBridgeAbi } from '@/contracts/abis'
 import { useConfig, useConnection, useReadContract, useSwitchChain, useWriteContract } from 'wagmi'
@@ -15,7 +15,6 @@ import useAppStore from '@/store/app'
 import {
   AssetConfig,
   amountAfterFee as getAmountAfterFee,
-  evmToTariUnits,
   getOotleUnwrapRefusal,
 } from '@/utils/bridge-route'
 import { isOotleAddress } from '@/utils/ootle-address'
@@ -183,12 +182,15 @@ export const useBridgeToTari = (ethAddress: `0x${string}`, asset: AssetConfig) =
         console.debug(`[ TAPPLET-BRIDGE ] Bridge transaction executed with txHash: ${txHash}, amount: ${value}`)
 
         // set ongoing to immediately display wrap modal
+        // An unwrap record, in the EVM token's 18-decimal units like the backend's unwrap rows.
         setLastOngoingBridgeTx({
           destinationAddress: tariAddress,
-          tokenAmount: evmToTariUnits(value),
-          amountAfterFee: evmToTariUnits(getAmountAfterFee(value, asset.unwrapFeeBps)),
-          status: UserTransactionDTO.status.PENDING,
+          amount: value.toString(),
+          amountAfterFee: getAmountAfterFee(value, asset.unwrapFeeBps).toString(),
+          status: UserUnwrappedTransactionDTO.status.PENDING,
           createdAt: new Date().toISOString(),
+          transactionHash: txHash ?? '',
+          blockTimestamp: '',
           paymentId: '',
           showModal: true,
           type: 'unwrap',

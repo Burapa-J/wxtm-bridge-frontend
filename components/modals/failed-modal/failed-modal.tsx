@@ -8,7 +8,7 @@ import { useTranslation } from 'react-i18next'
 import { useBridgeStore } from '@/store/bridge'
 import { clearOotleWrapToResume, removeOngoingTransaction, useTariAccountStore } from '@/store/account'
 import { useBridgeRoute } from '@/hooks/use-bridge-route'
-import { removeStoredWrap } from '@/hooks/use-bridge-ootle-to-evm'
+import { keepOotleWrapCapability, removeStoredWrap } from '@/hooks/use-bridge-ootle-to-evm'
 import { getTransactionLabels } from '@/utils/bridge-route'
 
 export const FailedModal = ({
@@ -45,7 +45,11 @@ export const FailedModal = ({
     clearOotleWrapToResume()
     try {
       const stored = await signer?.getOngoingBridgeTx()
-      if (stored?.paymentId === unconfirmedPaymentId) await signer?.removeOngoingBridgeTx()
+      if (stored && stored.paymentId === unconfirmedPaymentId) {
+        // the deposit may still be credited; keep its history details
+        if (stored.network === 'Ootle') keepOotleWrapCapability(stored)
+        await signer?.removeOngoingBridgeTx()
+      }
     } catch (error) {
       console.error('[ TAPPLET-BRIDGE ] Could not dismiss the unconfirmed deposit: ', error)
     }

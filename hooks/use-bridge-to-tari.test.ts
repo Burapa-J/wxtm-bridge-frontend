@@ -16,7 +16,7 @@ vi.mock('zustand', async () => {
   return {
     create:
       () =>
-      <T,>(init: StateCreator<T>) => {
+      <T>(init: StateCreator<T>) => {
         const api = createStore<T>()(init)
         const hook = (selector: (s: T) => unknown = (s) => s) => selector(api.getState())
         return Object.assign(hook, api)
@@ -28,7 +28,9 @@ vi.mock('wagmi', () => ({
   useConfig: () => ({}),
   useConnection: () => ({ chainId: baseSepolia.id }),
   useSwitchChain: () => ({ switchChainAsync: vi.fn() }),
-  useReadContract: () => ({ data: ['0x0f', 'wTARI', '1', BigInt(baseSepolia.id), '0x1111111111111111111111111111111111111111', '0x', []] }),
+  useReadContract: () => ({
+    data: ['0x0f', 'wTARI', '1', BigInt(baseSepolia.id), '0x1111111111111111111111111111111111111111', '0x', []],
+  }),
   useWriteContract: () => ({ mutateAsync: mocks.writeContract, isPending: false, isSuccess: false, isError: false }),
 }))
 vi.mock('wagmi/actions', () => ({ getWalletClient: async () => ({ signTypedData: mocks.signTypedData }) }))
@@ -42,6 +44,7 @@ vi.mock('@tari-project/wxtm-bridge-backend-api', async (importOriginal) => ({
 }))
 
 const { useBridgeStore } = await import('@/store/bridge')
+const { useTariAccountStore } = await import('@/store/account')
 const useAppStore = (await import('@/store/app')).default
 const { bech32m } = await import('bech32')
 const { useBridgeToTari } = await import('./use-bridge-to-tari')
@@ -77,6 +80,13 @@ describe('useBridgeToTari on an Ootle route (C15c)', () => {
     mocks.refreshOotleRegistry.mockResolvedValue([ASSET])
     expect(await useBridgeToTari(ME, ASSET).bridgeToTari('1', ME, DEST)).toBe(true)
     expect(mocks.writeContract).toHaveBeenCalledTimes(1)
+    // recorded as an unwrap, in the EVM token's 18-decimal units
+    expect(useTariAccountStore.getState().ongoingBridgeTx).toMatchObject({
+      type: 'unwrap',
+      amount: '1000000000000000000',
+      amountAfterFee: '996000000000000000',
+      transactionHash: '0xhash',
+    })
     // re-read after the signature prompt, immediately before the burn
     expect(mocks.signTypedData.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.refreshOotleRegistry.mock.invocationCallOrder[0],

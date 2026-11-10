@@ -78,6 +78,9 @@ export interface BackendBridgeTransaction extends UserTransactionDTO {
   sourceAddress?: string
   mined_in_block_height?: number
   ootleChainId?: number
+  // An Ootle wrap listed without its clientToken-gated details: the amount and destination fields
+  // are placeholders and must not be shown.
+  detailsHidden?: boolean
 }
 
 export interface BackendUnwrapTransaction extends UserUnwrappedTransactionDTO {

@@ -81,7 +81,7 @@
   "invalid_ootle_address": "The destination is not a valid Ootle address for this network.",
   "official_token_address": "Official {{token}} Token Address",
   "ootle_no_peg_out": "wTARI is redeemable for Ootle TARI only.",
-  "ootle_too_many_open_wraps": "You already have too many pending wraps. Finish or wait for your pending wraps before starting a new one.",
+  "ootle_too_many_open_wraps": "Too many wraps are already pending from this connection. Wait for them to finish before starting a new one.",
   "ootle_unavailable": "Ootle bridging is unavailable: Tari Universe does not support Ootle on this network, or your wallet PIN is not set.",
   "switch_chain_error": "Switch your wallet to {{chain}} to continue.",
   "ootle_wrap_error": "We could not start your wrap. Your TARI has not been sent; please try again.",
@@ -95,5 +95,6 @@
   "ootle_wrap_maybe_sent": "We could not tell whether your TARI deposit was sent. Check your Ootle wallet history before dismissing this or trying again.",
   "ootle_chain_unavailable": "{{token}} on {{chain}} is not accepting unwraps right now. Nothing was burned.",
   "ootle_chain_check_failed": "We could not confirm that {{chain}} is accepting unwraps. Nothing was burned; please try again.",
+  "ootle_deposits_unavailable": "Ootle deposits are temporarily unavailable. Nothing was sent; please try again later.",
   "bridge_start_in_progress": "Another bridge is still starting. Please wait for it to finish."
 }

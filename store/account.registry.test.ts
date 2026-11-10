@@ -39,6 +39,7 @@ function params(
   ootleNetwork = GetOotleWrapTokenParamsRespDTO.ootleNetwork.ESMERALDA,
 ): GetOotleWrapTokenParamsRespDTO {
   return {
+    depositAddressReady: true,
     ootleNetwork,
     coldAccountAddress: COLD,
     wrapTokenFeePercentageBps: 30,
@@ -100,5 +101,19 @@ describe('refreshOotleRegistry (C15c)', () => {
     mocks.getParams.mockResolvedValue(params(OotlePublicEvmChainDTO.status.ACTIVE))
     await Promise.all([refreshOotleRegistry(), refreshOotleRegistry(), refreshOotleRegistry()])
     expect(mocks.getParams).toHaveBeenCalledTimes(2) // once in beforeEach
+  })
+})
+
+describe('depositAddressReady (phase 2)', () => {
+  it('is carried into the store on refresh', async () => {
+    mocks.getParams.mockResolvedValueOnce({
+      ...params(OotlePublicEvmChainDTO.status.ACTIVE),
+      depositAddressReady: false,
+    })
+    await refreshOotleRegistry()
+    expect(useBridgeStore.getState().ootleDepositsReady).toBe(false)
+    mocks.getParams.mockResolvedValueOnce(params(OotlePublicEvmChainDTO.status.ACTIVE))
+    await refreshOotleRegistry()
+    expect(useBridgeStore.getState().ootleDepositsReady).toBe(true)
   })
 })

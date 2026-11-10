@@ -17,6 +17,8 @@ interface BridgeConfigStoreState {
   exceededDailyLimit: boolean
   ootleAssets: AssetConfig[]
   ootleColdAccountAddress: string
+  // params.depositAddressReady: false while the backend is not accepting Ootle deposits (create answers 503).
+  ootleDepositsReady: boolean
   ootleUnavailable: boolean
   // paymentId of the Ootle wrap between its deposit and tokens-sent ('' if none); no new bridge may
   // start meanwhile, and only that wrap may release it.
@@ -48,6 +50,7 @@ const initialState: BridgeConfigStoreState = {
   exceededDailyLimit: false,
   ootleAssets: [],
   ootleColdAccountAddress: '',
+  ootleDepositsReady: true,
   ootleUnavailable: false,
   ootleWrapInFlightId: '',
   bridgeStartId: '',
@@ -77,8 +80,11 @@ export const setTariColdWalletAddress = (address: string) =>
 export const setNetworks = (fromNetwork: Network, toNetwork: Network) =>
   useBridgeStore.setState({ fromNetwork, toNetwork })
 
-export const setOotleConfig = (ootleAssets: AssetConfig[], ootleColdAccountAddress: string) =>
-  useBridgeStore.setState({ ootleAssets, ootleColdAccountAddress })
+export const setOotleConfig = (
+  ootleAssets: AssetConfig[],
+  ootleColdAccountAddress: string,
+  ootleDepositsReady = true,
+) => useBridgeStore.setState({ ootleAssets, ootleColdAccountAddress, ootleDepositsReady })
 
 export const setOotleUnavailable = (ootleUnavailable: boolean) => useBridgeStore.setState({ ootleUnavailable })
 // Takes the in-flight lock for paymentId when it is free or already this wrap's; false when another wrap holds it.

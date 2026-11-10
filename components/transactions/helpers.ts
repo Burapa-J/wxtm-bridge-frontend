@@ -61,9 +61,8 @@ function isBridgeTransaction(
   transaction: TransactionInfo | CombinedBridgeTransaction,
 ): transaction is CombinedBridgeTransaction {
   return (
-    ('tokenAmount' in transaction &&
-      typeof transaction.tokenAmount === 'string') ||
-    ('amount' in transaction && typeof transaction.amount === 'string')
+    'type' in transaction &&
+    (transaction.type === 'wrap' || transaction.type === 'unwrap')
   )
 }
 

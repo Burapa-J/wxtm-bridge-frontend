@@ -25,6 +25,8 @@ import {
   useBridgeStore,
 } from '@/store/bridge'
 import useTariSigner from '@/store/signer'
+import useAppStore from '@/store/app'
+import { saveOotleWrapCapability } from '@/utils/ootle-wrap-capabilities'
 import { AssetConfig } from '@/utils/bridge-route'
 import { parseWxtmTokenAmount } from '@/utils/parse-wxtm-token-amount'
 import { errorSummary } from '@/utils/error-summary'
@@ -38,6 +40,15 @@ export const WAIT_ATTEMPTS = 3
 
 // The backend's answer once the wrap has left CREATED, e.g. after it already saw the deposit.
 const TRANSACTION_STATUS_INCORRECT = 'Transaction status is incorrect'
+
+// Keeps the wrap's read capability for the history lookup, apart from TU's ongoing slot.
+export function keepOotleWrapCapability(tx: Pick<BridgeTxDetails, 'paymentId' | 'clientToken'>) {
+  if (!tx.clientToken) return
+  saveOotleWrapCapability(useAppStore.getState().network, useTariAccountStore.getState().ootleAccount?.address, {
+    paymentId: tx.paymentId,
+    clientToken: tx.clientToken,
+  })
+}
 
 // False once another transaction has become the ongoing one, so a late result can't overwrite it.
 function isStillOngoing(tx: BridgeTxDetails): boolean {
@@ -187,7 +198,9 @@ export const useBridgeOotleToEvm = () => {
 
     // The wrap is confirmed; failures below are only logged.
     try {
-      // The clientToken is no longer needed; keep the rest so a reload can still show the outcome.
+      // TU's ongoing record drops the clientToken (it would block new bridges); the history keeps
+      // it separately to look up this wrap's details. Keep the rest so a reload can show the outcome.
+      keepOotleWrapCapability(tx)
       await writeStoredWrap(signer, {
         amount: tx.amount,
         amountToReceive: tx.amountToReceive,
@@ -223,6 +236,12 @@ export const useBridgeOotleToEvm = () => {
 
     if (!isAddress(evmAddress)) {
       setBridgeError(t('invalid_evm_address'))
+      return
+    }
+
+    // The backend is not taking Ootle deposits (cold account not attested); create would answer 503.
+    if (!useBridgeStore.getState().ootleDepositsReady) {
+      setBridgeError(t('ootle_deposits_unavailable'))
       return
     }
 
@@ -275,7 +294,10 @@ export const useBridgeOotleToEvm = () => {
       if (error instanceof ApiError && error.status === 403) throw error
       console.error('[ TAPPLET-BRIDGE ] Ootle wrap creation failed: ', errorSummary(error))
       if (error instanceof ApiError && error.status === 429) {
+        // per client connection, not per address
         setBridgeError(t('ootle_too_many_open_wraps'))
+      } else if (error instanceof ApiError && error.status === 503) {
+        setBridgeError(t('ootle_deposits_unavailable'))
       } else {
         setBridgeError(t('ootle_wrap_error'))
       }
@@ -323,6 +345,7 @@ export const useBridgeOotleToEvm = () => {
           showWrapFailed(tx)
           return
         }
+        keepOotleWrapCapability(tx)
       } catch (error) {
         console.error('[ TAPPLET-BRIDGE ] Could not store the Ootle wrap: ', errorSummary(error))
         showWrapFailed(tx)

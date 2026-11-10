@@ -12,7 +12,7 @@ vi.mock('zustand', async () => {
   return {
     create:
       () =>
-      <T,>(init: StateCreator<T>) => {
+      <T>(init: StateCreator<T>) => {
         const api = createStore<T>()(init)
         const hook = (selector: (s: T) => unknown = (s) => s) => selector(api.getState())
         return Object.assign(hook, api)
@@ -42,6 +42,9 @@ const { useTariAccountStore } = await import('@/store/account')
 const { useBridgeStore } = await import('@/store/bridge')
 const useTariSigner = (await import('@/store/signer')).default
 const { useBridgeOotleToEvm, removeStoredWrap } = await import('./use-bridge-ootle-to-evm')
+const useAppStore = (await import('@/store/app')).default
+const { ApiError } = await import('@tari-project/wxtm-bridge-backend-api')
+const { loadOotleWrapCapabilities } = await import('@/utils/ootle-wrap-capabilities')
 
 function deferred<T>() {
   let resolve!: (v: T) => void
@@ -68,7 +71,12 @@ function fakeSigner() {
 }
 
 const ASSET = { chainId: baseSepolia.id, kind: 'ootle' } as never
-const ARGS = { amount: '1', evmAddress: '0x1111111111111111111111111111111111111111', amountAfterFee: '0.99', asset: ASSET }
+const ARGS = {
+  amount: '1',
+  evmAddress: '0x1111111111111111111111111111111111111111',
+  amountAfterFee: '0.99',
+  asset: ASSET,
+}
 const create = vi.mocked(OotleWrapTokenService.createOotleWrapTokenTransaction)
 const send = vi.mocked(sendOotleStealth)
 const wait = vi.mocked(waitOotleTransaction)
@@ -81,8 +89,22 @@ beforeEach(() => {
   vi.spyOn(console, 'warn').mockImplementation(() => {})
   tu = fakeSigner()
   useTariSigner.setState({ signer: tu.signer })
-  useTariAccountStore.setState({ ootleAccount: { address: 'otl_esm_me', network: 'esmeralda' }, ongoingBridgeTx: undefined })
-  useBridgeStore.setState({ ootleWrapInFlightId: '', bridgeStartId: '', bridgeError: '', ootleColdAccountAddress: 'otl_cold' })
+  useTariAccountStore.setState({
+    ootleAccount: { address: 'otl_esm_me', network: 'esmeralda' },
+    ongoingBridgeTx: undefined,
+  })
+  useBridgeStore.setState({
+    ootleWrapInFlightId: '',
+    bridgeStartId: '',
+    bridgeError: '',
+    ootleColdAccountAddress: 'otl_cold',
+    ootleDepositsReady: true,
+  })
+  useAppStore.setState({ network: 'esmeralda' })
+  const local = new Map<string, string>()
+  vi.stubGlobal('window', {
+    localStorage: { getItem: (k: string) => local.get(k) ?? null, setItem: (k: string, v: string) => local.set(k, v) },
+  })
   vi.mocked(OotleWrapTokenService.updateOotleToTokensSent).mockResolvedValue(undefined as never)
 })
 
@@ -176,5 +198,48 @@ describe('removeStoredWrap (C15b)', () => {
     expect(tu.slot.value?.paymentId).toBe('pCurrent')
     await removeStoredWrap(tu.signer, 'pCurrent')
     expect(tu.slot.value).toBeUndefined()
+  })
+})
+
+const PAYMENT_ID = '00000000-0000-4000-8000-0000000000aa'
+const apiError = (status: number) =>
+  new ApiError(
+    { method: 'POST', url: '/ootle/wrap-token' },
+    { url: '', ok: false, status, statusText: '', body: { message: 'x' } },
+    'x',
+  )
+
+describe('Ootle wrap create responses (phase 2)', () => {
+  it('keeps the wrap capability from create through confirmation, apart from the ongoing slot', async () => {
+    create.mockResolvedValueOnce({ paymentId: PAYMENT_ID, clientToken: 'tokenA' } as never)
+    send.mockResolvedValueOnce({ transactionId: 'txA' })
+    wait.mockResolvedValue({ status: 'Accepted' } as never)
+
+    await useBridgeOotleToEvm().bridgeOotleToEvm(ARGS)
+
+    expect(loadOotleWrapCapabilities('esmeralda', 'otl_esm_me')).toEqual([
+      { paymentId: PAYMENT_ID, clientToken: 'tokenA' },
+    ])
+    // the ongoing record no longer blocks new bridges
+    expect(tu.slot.value?.clientToken).toBeUndefined()
+  })
+
+  it.each([
+    [429, 'ootle_too_many_open_wraps'],
+    [503, 'ootle_deposits_unavailable'],
+  ])('maps a %s from create to %s without sending', async (status, key) => {
+    vi.spyOn(console, 'error').mockImplementation(() => {})
+    create.mockRejectedValueOnce(apiError(status))
+    await useBridgeOotleToEvm().bridgeOotleToEvm(ARGS)
+    expect(useBridgeStore.getState().bridgeError).toBe(key)
+    expect(send).not.toHaveBeenCalled()
+    expect(useBridgeStore.getState().bridgeStartId).toBe('')
+  })
+
+  it('does not start while params say deposits are not accepted', async () => {
+    useBridgeStore.setState({ ootleDepositsReady: false })
+    await useBridgeOotleToEvm().bridgeOotleToEvm(ARGS)
+    expect(useBridgeStore.getState().bridgeError).toBe('ootle_deposits_unavailable')
+    expect(create).not.toHaveBeenCalled()
   })
 })

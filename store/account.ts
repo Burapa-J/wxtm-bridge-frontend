@@ -144,7 +144,9 @@ export const refreshOotleBalance = async () => {
 
 // The chain registry's Ootle assets for Universe's current network: [] when the params are for another
 // network or carry an invalid cold account, undefined when they can't be fetched.
-async function fetchOotleRegistry(): Promise<{ assets: AssetConfig[]; coldAccountAddress: string } | undefined> {
+async function fetchOotleRegistry(): Promise<
+  { assets: AssetConfig[]; coldAccountAddress: string; depositsReady: boolean } | undefined
+> {
   let params
   try {
     params = await OotleWrapTokenService.getOotleWrapTokenParams()
@@ -157,9 +159,14 @@ async function fetchOotleRegistry(): Promise<{ assets: AssetConfig[]; coldAccoun
     console.warn(
       `[ TAPPLET-BRIDGE ] Ootle params are for ${params.ootleNetwork}, not ${network}, or the cold account is invalid; hiding Ootle`,
     )
-    return { assets: [], coldAccountAddress: '' }
+    return { assets: [], coldAccountAddress: '', depositsReady: false }
   }
-  return { assets: getOotleAssets(params), coldAccountAddress: params.coldAccountAddress }
+  return {
+    assets: getOotleAssets(params),
+    coldAccountAddress: params.coldAccountAddress,
+    // older backends omit it; create's 503 is the authority either way
+    depositsReady: params.depositAddressReady !== false,
+  }
 }
 
 // Offers the Ootle routes only when the backend has a usable wTARI chain and Universe's Ootle wallet is open.
@@ -173,7 +180,10 @@ export const loadOotleBridge = async () => {
     const ootleAccount = await getOotleAccount()
     // The account address is the unwrap destination: validate Universe's reply once at the boundary.
     const network = useAppStore.getState().network
-    if (ootleAccount.network.toLowerCase() !== network.toLowerCase() || !isOotleAddress(ootleAccount.address, network)) {
+    if (
+      ootleAccount.network.toLowerCase() !== network.toLowerCase() ||
+      !isOotleAddress(ootleAccount.address, network)
+    ) {
       console.error(`[ TAPPLET-BRIDGE ] Universe's Ootle account is not a valid address on ${network}; hiding Ootle`)
       return
     }
@@ -188,7 +198,7 @@ export const loadOotleBridge = async () => {
   }
 
   await refreshOotleBalance()
-  setOotleConfig(registry.assets, registry.coldAccountAddress)
+  setOotleConfig(registry.assets, registry.coldAccountAddress, registry.depositsReady)
 }
 
 let registryRefresh: Promise<AssetConfig[] | undefined> | undefined
@@ -203,7 +213,7 @@ export const refreshOotleRegistry = (): Promise<AssetConfig[] | undefined> => {
       if (!registry) return undefined
       // Only a loaded Ootle bridge has a selector to update.
       if (useTariAccountStore.getState().ootleAccount) {
-        setOotleConfig(registry.assets, registry.coldAccountAddress)
+        setOotleConfig(registry.assets, registry.coldAccountAddress, registry.depositsReady)
       }
       return registry.assets
     } finally {

@@ -63,6 +63,7 @@ function chain(chainId: number, status: OotlePublicEvmChainDTO.status, name: str
 
 function params(chains: OotlePublicEvmChainDTO[]): GetOotleWrapTokenParamsRespDTO {
   return {
+    depositAddressReady: true,
     ootleNetwork: GetOotleWrapTokenParamsRespDTO.ootleNetwork.ESMERALDA,
     chains,
     coldAccountAddress: 'otl_esm_cold',
@@ -316,9 +317,9 @@ describe('getOotleUnwrapRefusal', () => {
   it('refuses when the fresh entry has other addresses than the loaded route', () => {
     const [asset] = loaded()
     const [current] = fresh(OotlePublicEvmChainDTO.status.ACTIVE)
-    expect(getOotleUnwrapRefusal(asset, [{ ...current, bridgeAddress: '0x9999999999999999999999999999999999999999' }])).toBe(
-      'ootle_chain_unavailable',
-    )
+    expect(
+      getOotleUnwrapRefusal(asset, [{ ...current, bridgeAddress: '0x9999999999999999999999999999999999999999' }]),
+    ).toBe('ootle_chain_unavailable')
   })
 
   it('fails closed when the registry could not be read', () => {

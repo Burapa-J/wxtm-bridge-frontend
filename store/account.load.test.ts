@@ -33,7 +33,8 @@ const { useBridgeStore } = await import('./bridge')
 const useAppStore = (await import('./app')).default
 
 const BASEPOINT = 'e2f2ae0a6abc4e71a884a961c500515f58e30b6aa582dd8db6a65945e08d2d76'
-const address = (hex: string) => bech32m.encode('otl_esm_', bech32m.toWords(Uint8Array.from(Buffer.from(hex, 'hex'))), 1023)
+const address = (hex: string) =>
+  bech32m.encode('otl_esm_', bech32m.toWords(Uint8Array.from(Buffer.from(hex, 'hex'))), 1023)
 const VALID = address(BASEPOINT.repeat(2))
 const BAD_KEY = address('ff'.repeat(64))
 
@@ -43,6 +44,7 @@ beforeEach(() => {
   useTariAccountStore.setState({ ootleAccount: undefined })
   useBridgeStore.setState({ ootleAssets: [], ootleColdAccountAddress: '' })
   mocks.getParams.mockResolvedValue({
+    depositAddressReady: true,
     ootleNetwork: GetOotleWrapTokenParamsRespDTO.ootleNetwork.ESMERALDA,
     coldAccountAddress: VALID,
     wrapTokenFeePercentageBps: 30,

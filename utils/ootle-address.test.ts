@@ -44,7 +44,8 @@ describe('isOotleAddress', () => {
   // C26: checksum and prefix are fine, the keys are not.
   it('rejects a checksum-valid address whose keys are not Ristretto points', () => {
     // the review's proof address: 64 0xff bytes
-    const allFf = 'otl_esm_1llllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllc4arh2e'
+    const allFf =
+      'otl_esm_1llllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllllc4arh2e'
     expect(bech32m.decode(allFf, 1023).prefix).toBe('otl_esm_')
     expect(isOotleAddress(allFf, 'esmeralda')).toBe(false)
     // non-canonical ("negative") encodings, in either key slot
