@@ -1516,10 +1516,10 @@
   dependencies:
     bech32 "^2.0.0"
 
-"@tari-project/wxtm-bridge-backend-api@^0.1.71":
-  version "0.1.71"
-  resolved "https://registry.npmjs.org/@tari-project/wxtm-bridge-backend-api/-/wxtm-bridge-backend-api-0.1.71.tgz#d3b746fff8fb4ae202496f47ba828870a3ee75f7"
-  integrity sha512-z0sEH8Rtb89BJgy49qrCKOVNBpZZ512D+OnJSHRWPTOvoLCBtk4RkVEwcii5AhiLKYgqeZRUEsZHCgdA8Av68A==
+"@tari-project/wxtm-bridge-backend-api@^0.1.72":
+  version "0.1.72"
+  resolved "https://registry.npmjs.org/@tari-project/wxtm-bridge-backend-api/-/wxtm-bridge-backend-api-0.1.72.tgz#9d0663741f15c849a6a3492b0e0414e0be7b397b"
+  integrity sha512-uGrb3T7mzH6GaA3OrCnDGzQ3MzynZpeRLHdtghRJqNkGecMAsWEqkSwetj27YKPQPNXtj1CQy5QWZUCkhTFnYw==
 
 "@tybys/wasm-util@^0.10.0":
   version "0.10.1"
